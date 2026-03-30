@@ -172,8 +172,11 @@ function parseGeminiText(text) {
     var prevNight = /^\/\s*\d/.test(rest) || rest.includes("(/)") || /overnight|prev/i.test(rest);
     var tourMatch = rest.match(/\b(7\d{3,4})\b/);
     var isOff = /^\s*b\s*$/i.test(rest.replace(/[/\s]/g, "")) || /\bbrīv/i.test(rest) || /\bfree\b/i.test(rest) || /\boff\b/i.test(rest);
+    var isDuty = /^\s*d\s*$/i.test(rest.replace(/[/\s]/g, ""));
     if (isOff) {
       result[day] = { tour: "b", prevNight: false };
+    } else if (isDuty) {
+      result[day] = { tour: "D", prevNight: false };
     } else if (tourMatch) {
       result[day] = { tour: normalizeTour(tourMatch[1]), prevNight: prevNight };
     }
@@ -453,7 +456,7 @@ function App() {
       var needed = new Set();
       for (var d = 1; d <= dim; d++) {
         var e = editSchedule[d];
-        if (e && e.tour && e.tour !== "b") {
+        if (e && e.tour && e.tour !== "b" && e.tour !== "D") {
           needed.add(e.tour);
           var n = normalizeTour(e.tour);
           if (n !== e.tour) needed.add(n);
@@ -504,6 +507,15 @@ function App() {
       for (var dd = 1; dd <= dim; dd++) {
         var entry = editSchedule[dd];
         if (!entry || !entry.tour || entry.tour === "b") { calendar[dd] = { type: "off" }; continue; }
+        if (entry.tour === "D") {
+          calendar[dd] = {
+            type: "work", tour: "D", isDuty: true,
+            startTime: "09:00", endTime: "21:00",
+            overnight: false, prevDayOvernight: false,
+            hours: 12, notFound: false,
+          };
+          continue;
+        }
         var dow = getDow(dd);
         var variants = lookupTour(toursJson.tours, entry.tour);
         var v = getBestVariant(variants, dow);
@@ -553,8 +565,9 @@ function App() {
   };
 
   var goToNewMonth = function() {
+    var keepYear = calData ? calData.year : new Date().getFullYear();
     setGeminiText(""); setParsed(null); setEditSchedule({}); setPdfs([]); setError(null);
-    setMetaMonth(""); setMetaYear(new Date().getFullYear());
+    setMetaMonth(""); setMetaYear(keepYear);
     setSelectedDay(null); setEditDayTour("");
     setStep(STEPS.PASTE);
   };
@@ -581,12 +594,20 @@ function App() {
     var prevNight = newRaw.trim().startsWith("/");
     var cleaned = newRaw.trim().replace(/^\/\s*/, "").trim();
     var isOff = cleaned.toLowerCase() === "b" || cleaned === "";
-    var tourId = isOff ? "b" : normalizeTour(cleaned);
+    var isDuty = cleaned.toLowerCase() === "d";
+    var tourId = isOff ? "b" : isDuty ? "D" : normalizeTour(cleaned);
     var newEdit = Object.assign({}, editSchedule, { [day]: { tour: tourId, prevNight: prevNight } });
     setEditSchedule(newEdit);
     var newCal = Object.assign({}, calData.calendar);
     if (isOff) {
       newCal[day] = { type: "off" };
+    } else if (isDuty) {
+      newCal[day] = {
+        type: "work", tour: "D", isDuty: true,
+        startTime: "09:00", endTime: "21:00",
+        overnight: false, prevDayOvernight: false,
+        hours: 12, notFound: false,
+      };
     } else {
       var dow = getDow(day);
       var variants = lookupTour(calData.pdfTours, tourId);
@@ -711,9 +732,16 @@ function App() {
     var nightH = 0;
     var holidayH = 0;
     var holidayDays = [];
+    var dutyH = 0;
+    var dutyDays = [];
     for (var bd = 1; bd <= calData.daysInMonth; bd++) {
       var binfo = calData.calendar[bd];
       if (!binfo || binfo.type !== "work") continue;
+      // Duty hours
+      if (binfo.isDuty && binfo.hours) {
+        dutyH += parseFloat(binfo.hours);
+        dutyDays.push(bd);
+      }
       // Holiday hours: all hours on a holiday
       if (isLvHoliday(calData.year, calData.month, bd) && binfo.hours) {
         holidayH += parseFloat(binfo.hours);
@@ -735,7 +763,7 @@ function App() {
         }
       }
     }
-    breakdown = { nightH: nightH.toFixed(1), holidayH: holidayH.toFixed(1), holidayDays: holidayDays };
+    breakdown = { nightH: nightH.toFixed(1), holidayH: holidayH.toFixed(1), holidayDays: holidayDays, dutyH: dutyH.toFixed(1), dutyDays: dutyDays };
   }
 
   return (
@@ -765,12 +793,14 @@ function App() {
         .dw{background:#1a2035;border-color:#2a3a5c}.dw:hover{border-color:#3b82f6;box-shadow:0 0 14px rgba(59,130,246,.3)}
         .dn{background:#1f1535;border-color:#3b2a5c}.dn:hover{border-color:#8b5cf6;box-shadow:0 0 14px rgba(139,92,246,.3)}
         .dp{background:#1f2a20;border-color:#2a5c35}.dp:hover{border-color:#22c55e;box-shadow:0 0 14px rgba(34,197,94,.3)}
-        .do{background:#0f1a1a;border-color:#1a3a35}.do:hover{border-color:#2dd4bf;box-shadow:0 0 10px rgba(45,212,191,.15)}
+        .do{background:#1a0f0f;border-color:#3a1a1a}.do:hover{border-color:#f87171;box-shadow:0 0 10px rgba(248,113,113,.15)}
         .dnf{background:#2a1a10;border-color:#5c3a1a}
+        .dc2{background:#1a2535;border-color:#2a4a5c}.dc2:hover{border-color:#38bdf8;box-shadow:0 0 14px rgba(56,189,248,.3)}
         .sel.dw{border-color:#3b82f6!important;box-shadow:0 0 20px rgba(59,130,246,.5)!important}
         .sel.dn{border-color:#8b5cf6!important;box-shadow:0 0 20px rgba(139,92,246,.5)!important}
         .sel.dp{border-color:#22c55e!important;box-shadow:0 0 20px rgba(34,197,94,.5)!important}
-        .sel.do{border-color:#2dd4bf!important;box-shadow:0 0 20px rgba(45,212,191,.3)!important}
+        .sel.do{border-color:#f87171!important;box-shadow:0 0 20px rgba(248,113,113,.3)!important}
+        .sel.dc2{border-color:#38bdf8!important;box-shadow:0 0 20px rgba(56,189,248,.5)!important}
         .pb{height:3px;background:#1c1f2b;border-radius:2px;overflow:hidden}
         .pf{height:100%;background:linear-gradient(90deg,#f59e0b,#ef4444);border-radius:2px;transition:width .4s}
         .sc{background:#161820;border:1px solid #2a2d3a;border-radius:10px;padding:14px 18px}
@@ -917,7 +947,7 @@ function App() {
                 2: b<br />
                 3: 7117<br />
                 ...<br />
-                Kur "/" pirms numura nozīmē naktsmainis (darbs sākās iepriekšējā dienā), "b" = brīvdiena.
+                Kur "/" pirms numura nozīmē naktsmainis (darbs sākās iepriekšējā dienā), "b" = brīvdiena, "D" = dežūra.
               </div>
             </div>
 
@@ -965,7 +995,7 @@ function App() {
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span style={{ fontSize: 11, color: "#6b7280" }}>Gads:</span>
-                  <input type="number" value={metaYear} onChange={function(e) { setMetaYear(parseInt(e.target.value)); }} style={{ width: 80 }} />
+                  <input type="number" value={metaYear} onChange={function(e) { var v = parseInt(e.target.value); if (v && v > 2000) setMetaYear(v); }} style={{ width: 80 }} />
                 </div>
               </div>
             </div>
@@ -1009,6 +1039,8 @@ function App() {
                         <div style={{ fontSize: 9 }}>
                           {isOff ? (
                             <span className="tg tag-b">BRĪVS</span>
+                          ) : e.tour === "D" ? (
+                            <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>DEŽŪRA</span>
                           ) : e.prevNight ? (
                             <span className="tg tag-p">↩ NAKTS</span>
                           ) : (
@@ -1033,7 +1065,7 @@ function App() {
                   })}
                 </div>
                 <div style={{ marginTop: 10, fontSize: 9, color: "#3a3d4a", lineHeight: 1.7 }}>
-                  Ievades formāts: <span style={{ color: "#f59e0b" }}>70157</span> = tūre · <span style={{ color: "#4ade80" }}>/70174</span> = naktsmainis · <span style={{ color: "#4a4d5a" }}>b</span> = brīvdiena
+                  Ievades formāts: <span style={{ color: "#f59e0b" }}>70157</span> = tūre · <span style={{ color: "#4ade80" }}>/70174</span> = naktsmainis · <span style={{ color: "#06b6d4" }}>D</span> = dežūra · <span style={{ color: "#4a4d5a" }}>b</span> = brīvdiena
                 </div>
               </div>
 
@@ -1171,7 +1203,16 @@ function App() {
                     <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: "#ef4444" }}>{breakdown.holidayH}</div>
                     <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1 }}>SVĒTKU</div>
                   </div>
+                  <div>
+                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: "#06b6d4" }}>{breakdown.dutyH}</div>
+                    <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1 }}>DEŽŪRAS</div>
+                  </div>
                 </div>
+                {breakdown.dutyDays.length > 0 && (
+                  <div style={{ marginTop: 10, fontSize: 10, color: "#06b6d4" }}>
+                    Dežūras: {breakdown.dutyDays.map(function(hd) { return hd + "." + MONTH_LV[calData.month].toLowerCase().slice(0,3); }).join(", ")} ({breakdown.dutyDays.length} dienas × 12h)
+                  </div>
+                )}
                 {breakdown.holidayDays.length > 0 && (
                   <div style={{ marginTop: 10, fontSize: 10, color: "#6b7280" }}>
                     Svētku dienas šajā mēnesī: {breakdown.holidayDays.map(function(hd) { return hd + "." + MONTH_LV[calData.month].toLowerCase().slice(0,3); }).join(", ")}
@@ -1187,9 +1228,10 @@ function App() {
             <div className="mob-legend" style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", fontSize: 9, color: "#6b7280" }}>
               {[
                 { bg: "#1a2035", br: "#2a3a5c", l: "Darbs" },
+                { bg: "#1a2535", br: "#2a4a5c", l: "→ Turpinās" },
                 { bg: "#1f1535", br: "#3b2a5c", l: "🌙 Naktsmainis" },
                 { bg: "#1f2a20", br: "#2a5c35", l: "↩ Nakts beigas" },
-                { bg: "#0f1a1a", br: "#1a3a35", l: "Brīvdiena" },
+                { bg: "#1a0f0f", br: "#3a1a1a", l: "Brīvdiena" },
                 { bg: "#2a1a10", br: "#5c3a1a", l: "Nav atrasta" },
               ].map(function(item) {
                 return (
@@ -1220,8 +1262,11 @@ function App() {
                 var isSel = selectedDay === d;
                 var w = new Date(calData.year, calData.month - 1, d).getDay();
                 var isWE = w === 0 || w === 6;
-                // Overnight start = purple, continuation = green, regular work = blue
-                var cls = isOff ? "do" : isNF ? "dnf" : isPrev ? "dp" : isNight ? "dn" : "dw";
+                // Check if this day's tour continues to next day
+                var nextDayInfo = d < calData.daysInMonth ? calData.calendar[d + 1] : null;
+                var continuesNext = !isOff && !isPrev && !isNight && nextDayInfo && nextDayInfo.prevDayOvernight;
+                // Overnight start = purple, continuation = green, continues next = light blue, regular work = blue, off = red
+                var cls = isOff ? "do" : isNF ? "dnf" : isPrev ? "dp" : isNight ? "dn" : continuesNext ? "dc2" : "dw";
                 // Moon only on true overnight: start day with overnight=true, or continuation where prev day has overnight=true
                 var prevDayInfo = d > 1 ? calData.calendar[d - 1] : null;
                 var showMoon = isNight || (isPrev && prevDayInfo && prevDayInfo.overnight);
@@ -1229,11 +1274,11 @@ function App() {
                 return (
                   <div key={d} className={"dc " + cls + (isSel ? " sel" : "")} onClick={function() { setSelectedDay(isSel ? null : d); setEditDayTour(""); }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
-                      <span className="mob-cell-day" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, lineHeight: 1, color: isOff ? (isWE ? "#2dd4bf" : "#5eead4") : isWE ? "#fbbf24" : "#e8eaf0" }}>{d}</span>
-                      {!isOff && <span className="mob-cell-icon" style={{ fontSize: 10 }}>{isPrev ? (showMoon ? "🌙↩" : "↩") : showMoon ? "🌙" : ""}{isNF ? "⚠" : ""}</span>}
+                      <span className="mob-cell-day" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, lineHeight: 1, color: isOff ? (isWE ? "#f87171" : "#fca5a5") : isWE ? "#fbbf24" : "#e8eaf0" }}>{d}</span>
+                      {!isOff && <span className="mob-cell-icon" style={{ fontSize: 10 }}>{isPrev ? (showMoon ? "🌙↩" : "↩") : showMoon ? "🌙" : continuesNext ? "→" : ""}{isNF ? "⚠" : ""}</span>}
                     </div>
                     {isOff ? (
-                      <div className="mob-cell-label" style={{ fontSize: 10, color: "#2dd4bf", letterSpacing: 1, marginTop: 6 }}>BRĪVS</div>
+                      <div className="mob-cell-label" style={{ fontSize: 10, color: "#f87171", letterSpacing: 1, marginTop: 6 }}>BRĪVS</div>
                     ) : (
                       <>
                         <div className="mob-cell-tour" style={{ fontSize: 9, color: "#f59e0b88", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{info.tour}</div>
@@ -1260,7 +1305,7 @@ function App() {
 
             {/* Day detail */}
             {selectedDay && selDay && (
-              <div style={{ marginTop: 18, background: "#161820", border: "1px solid " + (selDay.type === "off" ? "#1a3a35" : selDay.prevDayOvernight ? "#2a5c35" : selDay.overnight ? "#3b2a5c" : "#2a3a5c"), borderRadius: 12, padding: 20 }}>
+              <div style={{ marginTop: 18, background: "#161820", border: "1px solid " + (selDay.type === "off" ? "#3a1a1a" : selDay.prevDayOvernight ? "#2a5c35" : selDay.overnight ? "#3b2a5c" : "#2a3a5c"), borderRadius: 12, padding: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
                   <div>
                     <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 50, color: "#f59e0b", lineHeight: 1 }}>{selectedDay}</div>
@@ -1298,7 +1343,7 @@ function App() {
                       )}
                     </div>
                   )}
-                  {selDay.type === "off" && <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: "#2dd4bf", letterSpacing: 3 }}>BRĪVDIENA</div>}
+                  {selDay.type === "off" && <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: "#f87171", letterSpacing: 3 }}>BRĪVDIENA</div>}
                 </div>
 
                 {selDay.type !== "off" && (
@@ -1330,7 +1375,7 @@ function App() {
                     >ATJAUNOT</button>
                   </div>
                   <div style={{ fontSize: 10, color: "#3a3d4a", marginTop: 6 }}>
-                    Piemēri: <span style={{ color: "#6b7280" }}>70259</span> = darbs · <span style={{ color: "#6b7280" }}>/70174</span> = naktsmainis · <span style={{ color: "#6b7280" }}>b</span> = brīvdiena
+                    Piemēri: <span style={{ color: "#6b7280" }}>70259</span> = darbs · <span style={{ color: "#6b7280" }}>/70174</span> = naktsmainis · <span style={{ color: "#06b6d4" }}>D</span> = dežūra · <span style={{ color: "#6b7280" }}>b</span> = brīvdiena
                   </div>
                 </div>
               </div>
