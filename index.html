@@ -172,11 +172,16 @@ function parseGeminiText(text) {
     var prevNight = /^\/\s*\d/.test(rest) || rest.includes("(/)") || /overnight|prev/i.test(rest);
     var tourMatch = rest.match(/\b(7\d{3,4})\b/);
     var isOff = /^\s*b\s*$/i.test(rest.replace(/[/\s]/g, "")) || /\bbrīv/i.test(rest) || /\bfree\b/i.test(rest) || /\boff\b/i.test(rest);
-    var isDuty = /^\s*d\s*$/i.test(rest.replace(/[/\s]/g, ""));
+    var isDuty = /^\s*d\s*$/i.test(rest.replace(/[/\s]/g, "")) || /^\s*d\s*\d/i.test(rest.replace(/[/\s]/g, ""));
+    var dutyHours = 16;
+    if (isDuty) {
+      var dMatch = rest.match(/d\s*(\d+\.?\d*)/i);
+      if (dMatch) dutyHours = parseFloat(dMatch[1]);
+    }
     if (isOff) {
       result[day] = { tour: "b", prevNight: false };
     } else if (isDuty) {
-      result[day] = { tour: "D", prevNight: false };
+      result[day] = { tour: "D", prevNight: false, dutyHours: dutyHours };
     } else if (tourMatch) {
       result[day] = { tour: normalizeTour(tourMatch[1]), prevNight: prevNight };
     }
@@ -301,6 +306,8 @@ function App() {
   var _ev = useState(""), editVal = _ev[0], setEditVal = _ev[1];
   var _db = useState(false), showDebug = _db[0], setShowDebug = _db[1];
   var _dt = useState(""), editDayTour = _dt[0], setEditDayTour = _dt[1];
+  var _ets = useState(""), editTimeStart = _ets[0], setEditTimeStart = _ets[1];
+  var _ete = useState(""), editTimeEnd = _ete[0], setEditTimeEnd = _ete[1];
   var _du = useState(false), editDayUpdating = _du[0], setEditDayUpdating = _du[1];
   var _gk = useState(""), geminiKey = _gk[0], setGeminiKey = _gk[1];
   var _ss = useState(false), showSettings = _ss[0], setShowSettings = _ss[1];
@@ -508,11 +515,14 @@ function App() {
         var entry = editSchedule[dd];
         if (!entry || !entry.tour || entry.tour === "b") { calendar[dd] = { type: "off" }; continue; }
         if (entry.tour === "D") {
+          var dh = entry.dutyHours || 16;
+          var dEnd = 5 + dh; // starts at 05:00
+          var dEndH = Math.floor(dEnd); var dEndM = Math.round((dEnd - dEndH) * 60);
           calendar[dd] = {
             type: "work", tour: "D", isDuty: true,
-            startTime: "09:00", endTime: "21:00",
+            startTime: "05:00", endTime: (dEndH < 10 ? "0" : "") + dEndH + ":" + (dEndM < 10 ? "0" : "") + dEndM,
             overnight: false, prevDayOvernight: false,
-            hours: 12, notFound: false,
+            hours: dh, notFound: false, dutyHours: dh,
           };
           continue;
         }
@@ -594,19 +604,26 @@ function App() {
     var prevNight = newRaw.trim().startsWith("/");
     var cleaned = newRaw.trim().replace(/^\/\s*/, "").trim();
     var isOff = cleaned.toLowerCase() === "b" || cleaned === "";
-    var isDuty = cleaned.toLowerCase() === "d";
+    var isDuty = /^d$/i.test(cleaned) || /^d\s*\d/i.test(cleaned);
+    var dutyHours = 16;
+    if (isDuty) {
+      var dMatch = cleaned.match(/d\s*(\d+\.?\d*)/i);
+      if (dMatch) dutyHours = parseFloat(dMatch[1]);
+    }
     var tourId = isOff ? "b" : isDuty ? "D" : normalizeTour(cleaned);
-    var newEdit = Object.assign({}, editSchedule, { [day]: { tour: tourId, prevNight: prevNight } });
+    var newEdit = Object.assign({}, editSchedule, { [day]: { tour: tourId, prevNight: prevNight, dutyHours: isDuty ? dutyHours : undefined } });
     setEditSchedule(newEdit);
     var newCal = Object.assign({}, calData.calendar);
     if (isOff) {
       newCal[day] = { type: "off" };
     } else if (isDuty) {
+      var dEnd = 5 + dutyHours;
+      var dEndH = Math.floor(dEnd); var dEndM = Math.round((dEnd - dEndH) * 60);
       newCal[day] = {
         type: "work", tour: "D", isDuty: true,
-        startTime: "09:00", endTime: "21:00",
+        startTime: "05:00", endTime: (dEndH < 10 ? "0" : "") + dEndH + ":" + (dEndM < 10 ? "0" : "") + dEndM,
         overnight: false, prevDayOvernight: false,
-        hours: 12, notFound: false,
+        hours: dutyHours, notFound: false, dutyHours: dutyHours,
       };
     } else {
       var dow = getDow(day);
@@ -652,7 +669,25 @@ function App() {
     saveState(updatedAll, activeKey);
   };
 
-  // Add more PDFs and process missing tours
+  // Update start/end times for a specific day
+  var updateDayTimes = function(day, newStart, newEnd) {
+    if (!calData) return;
+    var info = calData.calendar[day];
+    if (!info || info.type !== "work") return;
+    var s = newStart.trim() || info.startTime;
+    var e = newEnd.trim() || info.endTime;
+    // Validate time format
+    if (!/^\d{1,2}:\d{2}$/.test(s) || !/^\d{1,2}:\d{2}$/.test(e)) return;
+    var newCal = Object.assign({}, calData.calendar);
+    var hrs = calcHours(s, e);
+    newCal[day] = Object.assign({}, info, { startTime: s, endTime: e, hours: hrs, notFound: false });
+    recalcOvernight(newCal, calData.daysInMonth);
+    var newCalData = Object.assign({}, calData, { calendar: newCal });
+    setCalData(newCalData);
+    setEditTimeStart(""); setEditTimeEnd("");
+    var updatedAll2 = Object.assign({}, allCalData); updatedAll2[activeKey] = newCalData;
+    saveState(updatedAll2, activeKey);
+  };
   var processAdditionalPdfs = async function(newFiles) {
     if (!calData || newFiles.length === 0) return;
     setEditDayUpdating(true); setError(null);
@@ -947,7 +982,7 @@ function App() {
                 2: b<br />
                 3: 7117<br />
                 ...<br />
-                Kur "/" pirms numura nozīmē naktsmainis (darbs sākās iepriekšējā dienā), "b" = brīvdiena, "D" = dežūra.
+                Kur "/" pirms numura nozīmē naktsmainis (darbs sākās iepriekšējā dienā), "b" = brīvdiena, "D" = dežūra (16h), "D10" = dežūra 10h.
               </div>
             </div>
 
@@ -1040,7 +1075,7 @@ function App() {
                           {isOff ? (
                             <span className="tg tag-b">BRĪVS</span>
                           ) : e.tour === "D" ? (
-                            <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>DEŽŪRA</span>
+                            <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>D{e.dutyHours && e.dutyHours !== 16 ? e.dutyHours : ""}</span>
                           ) : e.prevNight ? (
                             <span className="tg tag-p">↩ NAKTS</span>
                           ) : (
@@ -1065,7 +1100,7 @@ function App() {
                   })}
                 </div>
                 <div style={{ marginTop: 10, fontSize: 9, color: "#3a3d4a", lineHeight: 1.7 }}>
-                  Ievades formāts: <span style={{ color: "#f59e0b" }}>70157</span> = tūre · <span style={{ color: "#4ade80" }}>/70174</span> = naktsmainis · <span style={{ color: "#06b6d4" }}>D</span> = dežūra · <span style={{ color: "#4a4d5a" }}>b</span> = brīvdiena
+                  Ievades formāts: <span style={{ color: "#f59e0b" }}>70157</span> = tūre · <span style={{ color: "#4ade80" }}>/70174</span> = naktsmainis · <span style={{ color: "#06b6d4" }}>D</span> = dežūra 16h · <span style={{ color: "#06b6d4" }}>D10</span> = dežūra 10h · <span style={{ color: "#4a4d5a" }}>b</span> = brīvdiena
                 </div>
               </div>
 
@@ -1272,7 +1307,7 @@ function App() {
                 var showMoon = isNight || (isPrev && prevDayInfo && prevDayInfo.overnight);
 
                 return (
-                  <div key={d} className={"dc " + cls + (isSel ? " sel" : "")} onClick={function() { setSelectedDay(isSel ? null : d); setEditDayTour(""); }}>
+                  <div key={d} className={"dc " + cls + (isSel ? " sel" : "")} onClick={function() { setSelectedDay(isSel ? null : d); setEditDayTour(""); setEditTimeStart(""); setEditTimeEnd(""); }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
                       <span className="mob-cell-day" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, lineHeight: 1, color: isOff ? (isWE ? "#f87171" : "#fca5a5") : isWE ? "#fbbf24" : "#e8eaf0" }}>{d}</span>
                       {!isOff && <span className="mob-cell-icon" style={{ fontSize: 10 }}>{isPrev ? (showMoon ? "🌙↩" : "↩") : showMoon ? "🌙" : continuesNext ? "→" : ""}{isNF ? "⚠" : ""}</span>}
@@ -1375,9 +1410,45 @@ function App() {
                     >ATJAUNOT</button>
                   </div>
                   <div style={{ fontSize: 10, color: "#3a3d4a", marginTop: 6 }}>
-                    Piemēri: <span style={{ color: "#6b7280" }}>70259</span> = darbs · <span style={{ color: "#6b7280" }}>/70174</span> = naktsmainis · <span style={{ color: "#06b6d4" }}>D</span> = dežūra · <span style={{ color: "#6b7280" }}>b</span> = brīvdiena
+                    Piemēri: <span style={{ color: "#6b7280" }}>70259</span> = darbs · <span style={{ color: "#6b7280" }}>/70174</span> = naktsmainis · <span style={{ color: "#06b6d4" }}>D</span> = dežūra 16h · <span style={{ color: "#06b6d4" }}>D10</span> = 10h · <span style={{ color: "#6b7280" }}>b</span> = brīvdiena
                   </div>
                 </div>
+
+                {/* Inline time edit */}
+                {selDay.type !== "off" && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #1c1f2b" }}>
+                    <div style={{ fontSize: 10, color: "#4a4d5a", letterSpacing: 2, marginBottom: 8 }}>MAINĪT LAIKUS:</div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        <span style={{ fontSize: 10, color: "#6b7280" }}>No:</span>
+                        <input
+                          type="time"
+                          value={editTimeStart || (selDay.startTime !== "?" ? selDay.startTime : "")}
+                          onChange={function(e) { setEditTimeStart(e.target.value); }}
+                          style={{ background: "#0f1117", border: "1px solid #2a2d3a", color: "#93c5fd", padding: "6px 8px", borderRadius: 6, fontFamily: "'DM Mono',monospace", fontSize: 13, outline: "none", width: 100 }}
+                        />
+                      </div>
+                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        <span style={{ fontSize: 10, color: "#6b7280" }}>Līdz:</span>
+                        <input
+                          type="time"
+                          value={editTimeEnd || (selDay.endTime !== "?" ? selDay.endTime : "")}
+                          onChange={function(e) { setEditTimeEnd(e.target.value); }}
+                          style={{ background: "#0f1117", border: "1px solid #2a2d3a", color: "#10b981", padding: "6px 8px", borderRadius: 6, fontFamily: "'DM Mono',monospace", fontSize: 13, outline: "none", width: 100 }}
+                        />
+                      </div>
+                      <button
+                        className="btn"
+                        disabled={!editTimeStart && !editTimeEnd}
+                        onClick={function() { updateDayTimes(selectedDay, editTimeStart || selDay.startTime, editTimeEnd || selDay.endTime); }}
+                        style={{ padding: "6px 16px", fontSize: 12 }}
+                      >SAGLABĀT</button>
+                    </div>
+                    <div style={{ fontSize: 10, color: "#3a3d4a", marginTop: 4 }}>
+                      Stundas tiks pārrēķinātas automātiski
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
