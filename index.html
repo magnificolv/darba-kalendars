@@ -191,6 +191,15 @@ function parseGeminiText(text) {
 
 var STEPS = { PASTE: "paste", EDIT: "edit", LOADING: "loading", CALENDAR: "calendar" };
 
+// Auto-format time input: 1530 → 15:30, 930 → 9:30, 08:30 stays
+function autoFormatTime(val) {
+  var clean = val.replace(/[^0-9:]/g, "");
+  if (clean.includes(":")) return clean;
+  if (clean.length === 4) return clean.slice(0, 2) + ":" + clean.slice(2);
+  if (clean.length === 3) return clean.slice(0, 1) + ":" + clean.slice(1);
+  return clean;
+}
+
 // Latvian public holidays (month-day) — fixed dates + Easter-based for each year
 function getLvHolidays(year) {
   var fixed = [
@@ -611,6 +620,9 @@ function App() {
       if (dMatch) dutyHours = parseFloat(dMatch[1]);
     }
     var tourId = isOff ? "b" : isDuty ? "D" : normalizeTour(cleaned);
+    // Check if this day was previously a duty day
+    var prevDay = calData.calendar[day];
+    var wasDuty = prevDay && prevDay.isDuty;
     var newEdit = Object.assign({}, editSchedule, { [day]: { tour: tourId, prevNight: prevNight, dutyHours: isDuty ? dutyHours : undefined } });
     setEditSchedule(newEdit);
     var newCal = Object.assign({}, calData.calendar);
@@ -629,14 +641,10 @@ function App() {
       var dow = getDow(day);
       var variants = lookupTour(calData.pdfTours, tourId);
       var v = getBestVariant(variants, dow);
-      if (v) {
-        newCal[day] = {
-          type: "work", tour: tourId,
-          startTime: v.startTime, endTime: v.endTime,
-          overnight: false, prevDayOvernight: prevNight,
-          hours: v.hours || calcHours(v.startTime, v.endTime), notFound: false,
-        };
-      } else {
+      var tourStart = v ? v.startTime : "?";
+      var tourEnd = v ? v.endTime : "?";
+      var tourHrs = v ? (v.hours || calcHours(v.startTime, v.endTime)) : null;
+      if (!v) {
         var existingInfo = null;
         var calKeys = Object.keys(calData.calendar);
         for (var ci = 0; ci < calKeys.length; ci++) {
@@ -646,19 +654,28 @@ function App() {
           }
         }
         if (existingInfo) {
-          newCal[day] = {
-            type: "work", tour: tourId,
-            startTime: existingInfo.startTime, endTime: existingInfo.endTime,
-            overnight: false, prevDayOvernight: prevNight,
-            hours: existingInfo.hours, notFound: false,
-          };
-        } else {
-          newCal[day] = {
-            type: "work", tour: tourId, startTime: "?", endTime: "?",
-            overnight: false, prevDayOvernight: prevNight, hours: null, notFound: true,
-          };
+          tourStart = existingInfo.startTime;
+          tourEnd = existingInfo.endTime;
+          tourHrs = existingInfo.hours;
         }
       }
+      // Calculate duty hours if this was a D day and tour has known start time
+      var remainingDuty = null;
+      if (wasDuty && tourStart !== "?") {
+        var tsh = tourStart.split(":").map(Number);
+        var tourStartMin = tsh[0] * 60 + tsh[1];
+        var dutyStartMin = 5 * 60; // 05:00
+        if (tourStartMin > dutyStartMin) {
+          remainingDuty = parseFloat(((tourStartMin - dutyStartMin) / 60).toFixed(1));
+        }
+      }
+      newCal[day] = {
+        type: "work", tour: tourId,
+        startTime: tourStart, endTime: tourEnd,
+        overnight: false, prevDayOvernight: prevNight,
+        hours: tourHrs, notFound: tourStart === "?",
+        dutyHours: remainingDuty,
+      };
     }
     // Recalculate overnight flags for all days
     recalcOvernight(newCal, calData.daysInMonth);
@@ -674,12 +691,16 @@ function App() {
     if (!calData) return;
     var info = calData.calendar[day];
     if (!info || info.type !== "work") return;
-    var s = newStart.trim() || info.startTime;
-    var e = newEnd.trim() || info.endTime;
-    // Validate time format
+    var s = autoFormatTime(newStart.trim()) || info.startTime;
+    var e = autoFormatTime(newEnd.trim()) || info.endTime;
     if (!/^\d{1,2}:\d{2}$/.test(s) || !/^\d{1,2}:\d{2}$/.test(e)) return;
     var newCal = Object.assign({}, calData.calendar);
     var hrs = calcHours(s, e);
+    // If this was a duty day, recalculate remaining duty
+    var dh = info.dutyHours;
+    if (info.isDuty && s !== "05:00") {
+      // Duty was changed to have tour-like times, keep duty flag
+    }
     newCal[day] = Object.assign({}, info, { startTime: s, endTime: e, hours: hrs, notFound: false });
     recalcOvernight(newCal, calData.daysInMonth);
     var newCalData = Object.assign({}, calData, { calendar: newCal });
@@ -1365,12 +1386,14 @@ function App() {
                             <div>
                               <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1, marginBottom: 4 }}>SĀKUMS</div>
                               <input type="text" inputMode="numeric" value={editTimeStart} onChange={function(e) { setEditTimeStart(e.target.value); }}
-                                placeholder="14:08" style={{ background: "#0f1117", border: "2px solid #f59e0b44", color: "#93c5fd", padding: "8px", borderRadius: 6, fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, outline: "none", width: 100, textAlign: "center" }} />
+                                onBlur={function() { if (editTimeStart) setEditTimeStart(autoFormatTime(editTimeStart)); }}
+                                placeholder="1408" style={{ background: "#0f1117", border: "2px solid #f59e0b44", color: "#93c5fd", padding: "8px", borderRadius: 6, fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, outline: "none", width: 100, textAlign: "center" }} />
                             </div>
                             <div>
                               <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1, marginBottom: 4 }}>BEIGAS</div>
                               <input type="text" inputMode="numeric" value={editTimeEnd} onChange={function(e) { setEditTimeEnd(e.target.value); }}
-                                placeholder="23:06" style={{ background: "#0f1117", border: "2px solid #f59e0b44", color: "#10b981", padding: "8px", borderRadius: 6, fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, outline: "none", width: 100, textAlign: "center" }} />
+                                onBlur={function() { if (editTimeEnd) setEditTimeEnd(autoFormatTime(editTimeEnd)); }}
+                                placeholder="2306" style={{ background: "#0f1117", border: "2px solid #f59e0b44", color: "#10b981", padding: "8px", borderRadius: 6, fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, outline: "none", width: 100, textAlign: "center" }} />
                             </div>
                             <button className="btn" disabled={!editTimeStart || !editTimeEnd}
                               onClick={function() { updateDayTimes(selectedDay, editTimeStart, editTimeEnd); }}
@@ -1394,6 +1417,13 @@ function App() {
                               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#f59e0b" }}>{selDay.hours}</div>
                             </div>
                           )}
+                          {selDay.dutyHours && !selDay.isDuty && (
+                            <div>
+                              <div style={{ fontSize: 10, color: "#06b6d4", letterSpacing: 1, marginBottom: 4 }}>DEŽŪRA</div>
+                              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#06b6d4" }}>{selDay.dutyHours}</div>
+                              <div style={{ fontSize: 8, color: "#4a4d5a" }}>05:00–{selDay.startTime}</div>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -1407,6 +1437,7 @@ function App() {
                     {selDay.overnight && <span className="tg" style={{ background: "#1f1535", color: "#a78bfa", border: "1px solid #3b2a5c" }}>🌙 NAKTSMAINIS</span>}
                     {selDay.prevDayOvernight && <span className="tg" style={{ background: "#1f2a20", color: "#4ade80", border: "1px solid #2a5c35" }}>↩ IEPRIEKŠĒJĀ NAKTS BEIGAS</span>}
                     {selDay.notFound && <span className="tg" style={{ background: "#2a1a10", color: "#f59e0b", border: "1px solid #5c3a1a" }}>⚠ NAV PDF</span>}
+                    {selDay.dutyHours && !selDay.isDuty && <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>+ DEŽŪRA {selDay.dutyHours}h</span>}
                   </div>
                 )}
 
@@ -1448,7 +1479,8 @@ function App() {
                           inputMode="numeric"
                           value={editTimeStart}
                           onChange={function(e) { setEditTimeStart(e.target.value); }}
-                          placeholder={selDay.startTime !== "?" ? selDay.startTime : "14:08"}
+                          onBlur={function() { if (editTimeStart) setEditTimeStart(autoFormatTime(editTimeStart)); }}
+                          placeholder={selDay.startTime !== "?" ? selDay.startTime : "1408"}
                           style={{ background: "#0f1117", border: "1px solid " + (selDay.startTime === "?" ? "#f59e0b44" : "#2a2d3a"), color: "#93c5fd", padding: "8px 10px", borderRadius: 6, fontFamily: "'DM Mono',monospace", fontSize: 15, outline: "none", width: 80, textAlign: "center" }}
                         />
                       </div>
@@ -1459,7 +1491,8 @@ function App() {
                           inputMode="numeric"
                           value={editTimeEnd}
                           onChange={function(e) { setEditTimeEnd(e.target.value); }}
-                          placeholder={selDay.endTime !== "?" ? selDay.endTime : "23:06"}
+                          onBlur={function() { if (editTimeEnd) setEditTimeEnd(autoFormatTime(editTimeEnd)); }}
+                          placeholder={selDay.endTime !== "?" ? selDay.endTime : "2306"}
                           style={{ background: "#0f1117", border: "1px solid " + (selDay.endTime === "?" ? "#f59e0b44" : "#2a2d3a"), color: "#10b981", padding: "8px 10px", borderRadius: 6, fontFamily: "'DM Mono',monospace", fontSize: 15, outline: "none", width: 80, textAlign: "center" }}
                         />
                       </div>
