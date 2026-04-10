@@ -696,12 +696,19 @@ function App() {
     if (!/^\d{1,2}:\d{2}$/.test(s) || !/^\d{1,2}:\d{2}$/.test(e)) return;
     var newCal = Object.assign({}, calData.calendar);
     var hrs = calcHours(s, e);
-    // If this was a duty day, recalculate remaining duty
-    var dh = info.dutyHours;
-    if (info.isDuty && s !== "05:00") {
-      // Duty was changed to have tour-like times, keep duty flag
+    var updated = Object.assign({}, info, { startTime: s, endTime: e, hours: hrs, notFound: false });
+    // If this is a duty day and start time moved from 05:00, calculate remaining duty
+    if (info.isDuty) {
+      var sh = s.split(":").map(Number);
+      var startMin = sh[0] * 60 + sh[1];
+      var dutyStartMin = 5 * 60; // 05:00
+      if (startMin > dutyStartMin) {
+        // Work starts later — duty from 05:00 to work start
+        updated.dutyBeforeH = parseFloat(((startMin - dutyStartMin) / 60).toFixed(1));
+        updated.dutyBeforeEnd = s;
+      }
     }
-    newCal[day] = Object.assign({}, info, { startTime: s, endTime: e, hours: hrs, notFound: false });
+    newCal[day] = updated;
     recalcOvernight(newCal, calData.daysInMonth);
     var newCalData = Object.assign({}, calData, { calendar: newCal });
     setCalData(newCalData);
@@ -793,9 +800,23 @@ function App() {
     for (var bd = 1; bd <= calData.daysInMonth; bd++) {
       var binfo = calData.calendar[bd];
       if (!binfo || binfo.type !== "work") continue;
-      // Duty hours
+      // Duty hours — full D days + partial duty when D was replaced by tour
       if (binfo.isDuty && binfo.hours) {
-        dutyH += parseFloat(binfo.hours);
+        if (binfo.dutyBeforeH) {
+          // D day with modified times: duty is the before-work portion
+          dutyH += binfo.dutyBeforeH;
+        } else {
+          // Full duty day
+          dutyH += parseFloat(binfo.hours);
+        }
+        dutyDays.push(bd);
+      } else if (binfo.dutyBeforeH) {
+        // Tour that replaced a D day
+        dutyH += binfo.dutyBeforeH;
+        dutyDays.push(bd);
+      } else if (binfo.dutyHours && !binfo.isDuty) {
+        // Tour with calculated duty remainder
+        dutyH += parseFloat(binfo.dutyHours);
         dutyDays.push(bd);
       }
       // Holiday hours: all hours on a holiday
@@ -1417,10 +1438,17 @@ function App() {
                               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#f59e0b" }}>{selDay.hours}</div>
                             </div>
                           )}
-                          {selDay.dutyHours && !selDay.isDuty && (
+                          {selDay.dutyBeforeH && (
                             <div>
                               <div style={{ fontSize: 10, color: "#06b6d4", letterSpacing: 1, marginBottom: 4 }}>DEŽŪRA</div>
-                              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#06b6d4" }}>{selDay.dutyHours}</div>
+                              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#06b6d4" }}>{selDay.dutyBeforeH}h</div>
+                              <div style={{ fontSize: 8, color: "#4a4d5a" }}>05:00–{selDay.dutyBeforeEnd}</div>
+                            </div>
+                          )}
+                          {selDay.dutyHours && !selDay.isDuty && !selDay.dutyBeforeH && (
+                            <div>
+                              <div style={{ fontSize: 10, color: "#06b6d4", letterSpacing: 1, marginBottom: 4 }}>DEŽŪRA</div>
+                              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#06b6d4" }}>{selDay.dutyHours}h</div>
                               <div style={{ fontSize: 8, color: "#4a4d5a" }}>05:00–{selDay.startTime}</div>
                             </div>
                           )}
@@ -1437,7 +1465,8 @@ function App() {
                     {selDay.overnight && <span className="tg" style={{ background: "#1f1535", color: "#a78bfa", border: "1px solid #3b2a5c" }}>🌙 NAKTSMAINIS</span>}
                     {selDay.prevDayOvernight && <span className="tg" style={{ background: "#1f2a20", color: "#4ade80", border: "1px solid #2a5c35" }}>↩ IEPRIEKŠĒJĀ NAKTS BEIGAS</span>}
                     {selDay.notFound && <span className="tg" style={{ background: "#2a1a10", color: "#f59e0b", border: "1px solid #5c3a1a" }}>⚠ NAV PDF</span>}
-                    {selDay.dutyHours && !selDay.isDuty && <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>+ DEŽŪRA {selDay.dutyHours}h</span>}
+                    {selDay.dutyBeforeH && <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>DEŽŪRA {selDay.dutyBeforeH}h (05:00–{selDay.dutyBeforeEnd})</span>}
+                    {selDay.dutyHours && !selDay.isDuty && !selDay.dutyBeforeH && <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>+ DEŽŪRA {selDay.dutyHours}h</span>}
                   </div>
                 )}
 
