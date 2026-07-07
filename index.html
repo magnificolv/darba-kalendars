@@ -972,14 +972,16 @@ function renderDayDetail() {
 
 function setStep(step) {
   state.step = step;
-  document.getElementById('step-paste').style.display = step === STEPS.PASTE ? 'block' : 'none';
-  document.getElementById('step-edit').style.display = step === STEPS.EDIT ? 'block' : 'none';
-  document.getElementById('step-loading').style.display = step === STEPS.LOADING ? 'block' : 'none';
-  document.getElementById('step-calendar').style.display = step === STEPS.CALENDAR ? 'block' : 'none';
+  const el = (id) => document.getElementById(id);
+  const show = (id, s) => { const e = el(id); if (e) e.style.display = s; };
+  show('step-paste', step === STEPS.PASTE ? 'block' : 'none');
+  show('step-edit', step === STEPS.EDIT ? 'block' : 'none');
+  show('step-loading', step === STEPS.LOADING ? 'block' : 'none');
+  show('step-calendar', step === STEPS.CALENDAR ? 'block' : 'none');
 
-  document.getElementById('btn-delete-month').style.display = step === STEPS.CALENDAR ? 'inline-block' : 'none';
-  document.getElementById('btn-new-month').style.display = step === STEPS.CALENDAR ? 'inline-block' : 'none';
-  document.getElementById('btn-edit').style.display = step === STEPS.CALENDAR ? 'inline-block' : 'none';
+  show('btn-delete-month', step === STEPS.CALENDAR ? 'inline-block' : 'none');
+  show('btn-new-month', step === STEPS.CALENDAR ? 'inline-block' : 'none');
+  show('btn-edit', step === STEPS.CALENDAR ? 'inline-block' : 'none');
 
   if (step === STEPS.EDIT) {
     renderEditRows();
