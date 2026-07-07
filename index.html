@@ -958,11 +958,6 @@ function renderDayDetail() {
         <button class="btn-sm" onclick="updateDayTour(${d})">💾 Saglabāt</button>
       </div>
       ${info.notFound ? '<div style="margin-top: 8px; font-size: 10px; color: var(--accent);">⚠ Tūre nav atrasta PDF katalogā</div>' : ''}
-      <div style="margin-top: 8px; display: flex; gap: 10px; align-items: center;">
-        <label style="font-size: 10px; color: var(--text-dim); display: flex; align-items: center; gap: 4px; cursor: pointer;">
-          <input type="checkbox" id="edit-holiday" ${info.holiday ? 'checked' : ''} style="accent-color: var(--red);"> Svētku diena
-        </label>
-      </div>
     </div>`;
 }
 
@@ -1044,6 +1039,62 @@ function nightOverlap(start, end) {
   return nightMin / 60;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// LATVIAN HOLIDAYS (auto-detection)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getEasterSunday(year) {
+  // Gauss algorithm
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return { month, day };
+}
+
+function getHolidays(year) {
+  const easter = getEasterSunday(year);
+  const easterDate = new Date(year, easter.month - 1, easter.day);
+  const goodFriday = new Date(easterDate); goodFriday.setDate(goodFriday.getDate() - 2);
+  const easterMonday = new Date(easterDate); easterMonday.setDate(easterMonday.getDate() + 1);
+  const pentecost = new Date(easterDate); pentecost.setDate(pentecost.getDate() + 49);
+
+  const holidays = [
+    { m: 1, d: 1 },   // Jaungada diena
+    { m: goodFriday.getMonth() + 1, d: goodFriday.getDate() },     // Lielā piektdiena
+    { m: easter.month, d: easter.day },                             // Pirmās Lieldienas
+    { m: easterMonday.getMonth() + 1, d: easterMonday.getDate() }, // Otrās Lieldienas
+    { m: 5, d: 1 },   // Darba svētki
+    { m: 5, d: 4 },   // Neatkarības deklarācijas diena
+    { m: pentecost.getMonth() + 1, d: pentecost.getDate() },       // Vasarsvētki
+    { m: 6, d: 23 },  // Līgo diena
+    { m: 6, d: 24 },  // Jāņu diena
+    { m: 11, d: 18 }, // Proklamēšanas diena
+    { m: 12, d: 24 }, // Ziemassvētku vakars
+    { m: 12, d: 25 }, // Pirmie Ziemassvētki
+    { m: 12, d: 26 }, // Otrie Ziemassvētki
+    { m: 12, d: 31 }, // Vecgada diena
+  ];
+
+  // Return as Set of "M-D" strings
+  return new Set(holidays.map(h => h.m + '-' + h.d));
+}
+
+function isHoliday(day, month, year) {
+  const h = getHolidays(year);
+  return h.has(month + '-' + day);
+}
+
 function showHoursBreakdown() {
   if (!state.calData) return;
 
@@ -1065,7 +1116,8 @@ function showHoursBreakdown() {
         night += nightOverlap(info.startTime, info.endTime);
       }
     }
-    if (info.holiday) {
+    // Auto-detect holidays
+    if (isHoliday(d, state.calData.month, state.calData.year)) {
       holiday += info.hours;
       holidayDays.push(d);
     }
@@ -1396,8 +1448,7 @@ function updateDayTour(day) {
       overnight: false,
       prevDayOvernight: prevNight,
       hours: hrs,
-      notFound: !variants && !manualStart,
-      holiday: document.getElementById('edit-holiday') ? document.getElementById('edit-holiday').checked : false
+      notFound: !variants && !manualStart
     };
   }
 
