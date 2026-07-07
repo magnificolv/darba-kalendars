@@ -349,7 +349,7 @@ select {
   <!-- ═══════════ STEP 4: CALENDAR ═══════════ -->
   <div id="step-calendar" style="display:none;">
     <!-- Stats bar -->
-    <div id="stats-bar" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;"></div>
+    <div id="stats-bar" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;"></div>
 
     <!-- Calendar grid -->
     <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
@@ -889,9 +889,13 @@ function renderCalendar() {
       <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">BRĪVDIENAS</div>
       <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--blue);">${totalOff}</div>
     </div>
-    <div class="sc" style="text-align: center;">
-      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">KOPĀ STUNDAS</div>
+    <div class="sc" style="text-align: center; cursor: pointer;" onclick="showHoursBreakdown()" title="Klikšķini lai redzētu sadalījumu">
+      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">KOPĀ STUNDAS ▾</div>
       <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--green);">${totalHrs}h</div>
+    </div>
+    <div class="sc" style="text-align: center; cursor: pointer;" onclick="showHoursBreakdown()" title="Klikšķini lai redzētu sadalījumu">
+      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">NAKTS (22-06)</div>
+      <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--purple);">${calcNightHours()}h</div>
     </div>`;
 
   renderDayDetail();
@@ -954,6 +958,11 @@ function renderDayDetail() {
         <button class="btn-sm" onclick="updateDayTour(${d})">💾 Saglabāt</button>
       </div>
       ${info.notFound ? '<div style="margin-top: 8px; font-size: 10px; color: var(--accent);">⚠ Tūre nav atrasta PDF katalogā</div>' : ''}
+      <div style="margin-top: 8px; display: flex; gap: 10px; align-items: center;">
+        <label style="font-size: 10px; color: var(--text-dim); display: flex; align-items: center; gap: 4px; cursor: pointer;">
+          <input type="checkbox" id="edit-holiday" ${info.holiday ? 'checked' : ''} style="accent-color: var(--red);"> Svētku diena
+        </label>
+      </div>
     </div>`;
 }
 
@@ -999,6 +1008,98 @@ function deleteMonth() {
   state.metaYear = new Date().getFullYear();
   clearStorage();
   setStep(STEPS.PASTE);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HOURS BREAKDOWN
+// ═══════════════════════════════════════════════════════════════════════════
+
+function calcNightHours() {
+  if (!state.calData) return '0.0';
+  const cal = state.calData.calendar;
+  let night = 0;
+  for (let d = 1; d <= state.calData.daysInMonth; d++) {
+    const info = cal[d];
+    if (!info || info.type !== 'work' || info.startTime === '?' || info.endTime === '?') continue;
+    night += nightOverlap(info.startTime, info.endTime);
+  }
+  return night.toFixed(1);
+}
+
+function nightOverlap(start, end) {
+  // Calculate how many hours of a shift fall between 22:00 and 06:00
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let startMin = sh * 60 + sm;
+  let endMin = eh * 60 + em;
+  if (endMin <= startMin) endMin += 1440; // crosses midnight
+
+  let nightMin = 0;
+  for (let m = startMin; m < endMin; m += 30) { // check in 30-min blocks
+    const hour = Math.floor((m % 1440) / 60);
+    if (hour >= 22 || hour < 6) nightMin += 30;
+  }
+  return nightMin / 60;
+}
+
+function showHoursBreakdown() {
+  if (!state.calData) return;
+
+  const cal = state.calData.calendar;
+  let total = 0, night = 0, duty = 0, holiday = 0;
+  const dutyDays = [], holidayDays = [];
+
+  for (let d = 1; d <= state.calData.daysInMonth; d++) {
+    const info = cal[d];
+    if (!info || info.type !== 'work') continue;
+    if (!info.hours) continue;
+    total += info.hours;
+
+    if (info.tour && /^D10?$/i.test(info.tour)) {
+      duty += info.hours;
+      dutyDays.push(d);
+    } else {
+      if (info.startTime && info.startTime !== '?' && info.endTime && info.endTime !== '?') {
+        night += nightOverlap(info.startTime, info.endTime);
+      }
+    }
+    if (info.holiday) {
+      holiday += info.hours;
+      holidayDays.push(d);
+    }
+  }
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div class="modal fade-in" style="max-width: 360px;">
+      <div style="font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 3px; color: var(--accent); margin-bottom: 16px;">
+        STUNDU SADALĪJUMS
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+        <div class="sc" style="text-align: center;">
+          <div style="font-size: 9px; color: var(--text-muted);">KOPĀ</div>
+          <div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--accent);">${total.toFixed(1)}h</div>
+        </div>
+        <div class="sc" style="text-align: center;">
+          <div style="font-size: 9px; color: var(--text-muted);">NAKTS (22-06)</div>
+          <div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--purple);">${night.toFixed(1)}h</div>
+        </div>
+        <div class="sc" style="text-align: center;">
+          <div style="font-size: 9px; color: var(--text-muted);">SVĒTKU</div>
+          <div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--red);">${holiday.toFixed(1)}h</div>
+        </div>
+        <div class="sc" style="text-align: center;">
+          <div style="font-size: 9px; color: var(--text-muted);">DEŽŪRAS</div>
+          <div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--teal);">${duty.toFixed(1)}h</div>
+        </div>
+      </div>
+      ${dutyDays.length > 0 ? `<div style="font-size: 10px; color: var(--teal); margin-bottom: 4px;">Dežūras: ${dutyDays.map(d => d + '. ' + MONTH_LV[state.calData.month].slice(0,3)).join(', ')} (${dutyDays.length} ${dutyDays.length === 1 ? 'diena' : 'dienas'} x ${dutyDays.length > 0 ? ((duty / dutyDays.length) || 0).toFixed(0) : 0}h)</div>` : ''}
+      ${holidayDays.length > 0 ? `<div style="font-size: 10px; color: var(--text-muted);">Svētku dienas: ${holidayDays.map(d => d + '. ' + MONTH_LV[state.calData.month].slice(0,3)).join(', ')}</div>` : ''}
+      <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()" style="width: 100%; margin-top: 12px;">Aizvērt</button>
+    </div>`;
+  document.body.appendChild(modal);
 }
 
 function goToNewMonth() {
@@ -1293,7 +1394,8 @@ function updateDayTour(day) {
       overnight: false,
       prevDayOvernight: prevNight,
       hours: hrs,
-      notFound: !variants && !manualStart
+      notFound: !variants && !manualStart,
+      holiday: document.getElementById('edit-holiday') ? document.getElementById('edit-holiday').checked : false
     };
   }
 
