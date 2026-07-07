@@ -1399,10 +1399,24 @@ function updateDayTour(day) {
     };
   }
 
-  // Recalculate overnight flags
+  // Recalculate overnight flags and refresh
   recalcOvernight(state.calData.calendar, state.calData.daysInMonth);
+  // Also save to monthsData
+  if (state._monthsData) {
+    const key = state.calData.year + '-' + String(state.calData.month).padStart(2, '0');
+    if (state._monthsData[key]) {
+      state._monthsData[key].calendar = JSON.parse(JSON.stringify(state.calData.calendar));
+      state._monthsData[key].editSchedule = JSON.parse(JSON.stringify(state.editSchedule));
+    }
+  }
   saveState();
+  // Force full re-render
   renderCalendar();
+  // Re-select the day to show updated detail
+  if (state.selectedDay === day) {
+    state.selectedDay = null;
+    setTimeout(() => { state.selectedDay = day; renderCalendar(); }, 50);
+  }
 }
 
 async function addExtraPdfs(fileList) {
