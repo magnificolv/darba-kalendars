@@ -1587,6 +1587,39 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!loadState()) {
     setStep(STEPS.PASTE);
   }
+  // On GitHub Pages, also try loading data.json as fallback
+  if (!state.calData && window.location.hostname.includes('github.io')) {
+    loadFromGithubData();
+  }
+}
+
+async function loadFromGithubData() {
+  try {
+    const resp = await fetch('data.json');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.months && Object.keys(data.months).length > 0) {
+      // Find the first month and display it
+      const keys = Object.keys(data.months).sort();
+      const latest = keys[keys.length - 1];
+      const monthData = data.months[latest];
+      if (monthData.calendar) {
+        const [y, m] = latest.split('-').map(Number);
+        state._monthsData = data.months;
+        state.calData = {
+          month: m, year: y,
+          daysInMonth: daysInMonth(m, y),
+          calendar: monthData.calendar,
+          pdfTours: monthData.pdfTours || {}
+        };
+        state.editSchedule = monthData.editSchedule || {};
+        state.metaMonth = String(m);
+        state.metaYear = y;
+        setStep(STEPS.CALENDAR);
+        renderCalendar();
+      }
+    }
+  } catch (e) { /* silent */ }
 });
 
 function addPdfs(files) {
