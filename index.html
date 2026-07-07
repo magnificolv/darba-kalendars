@@ -1561,29 +1561,36 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('paste-success').style.display = 'none';
       return;
     }
-    const p = parseGeminiText(state.geminiText);
-    if (Object.keys(p.schedule).length > 0) {
-      state.parsed = p;
-      state.editSchedule = JSON.parse(JSON.stringify(p.schedule));
-      if (p.month) state.metaMonth = String(p.month);
-      if (p.year) state.metaYear = p.year;
-      document.getElementById('meta-month').value = state.metaMonth;
-      document.getElementById('meta-year').value = state.metaYear;
-      document.getElementById('btn-next').disabled = false;
+    try {
+      const p = parseGeminiText(state.geminiText);
+      if (Object.keys(p.schedule).length > 0) {
+        state.parsed = p;
+        state.editSchedule = JSON.parse(JSON.stringify(p.schedule));
+        if (p.month) state.metaMonth = String(p.month);
+        if (p.year) state.metaYear = p.year;
+        document.getElementById('meta-month').value = state.metaMonth;
+        document.getElementById('meta-year').value = state.metaYear;
+        document.getElementById('btn-next').disabled = false;
 
-      const count = Object.keys(p.schedule).length;
-      let info = `✓ Atpazītas ${count} dienas`;
-      if (p.month) info += ` · ${MONTH_LV[p.month]}`;
-      if (p.year) info += ` ${p.year}`;
+        const count = Object.keys(p.schedule).length;
+        let info = `✓ Atpazītas ${count} dienas`;
+        if (p.month) info += ` · ${MONTH_LV[p.month]}`;
+        if (p.year) info += ` ${p.year}`;
 
-      const el = document.getElementById('paste-success');
-      el.textContent = info;
-      el.style.display = 'block';
-      document.getElementById('paste-error').style.display = 'none';
-    } else {
+        const el = document.getElementById('paste-success');
+        el.textContent = info;
+        el.style.display = 'block';
+        document.getElementById('paste-error').style.display = 'none';
+      } else {
+        state.parsed = null;
+        document.getElementById('btn-next').disabled = true;
+        document.getElementById('paste-success').style.display = 'none';
+      }
+    } catch (e) {
       state.parsed = null;
       document.getElementById('btn-next').disabled = true;
       document.getElementById('paste-success').style.display = 'none';
+      console.error('Parse error:', e);
     }
   });
 
