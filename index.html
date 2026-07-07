@@ -1614,7 +1614,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!state.calData && window.location.hostname.includes('github.io')) {
     loadFromGithubData();
   }
-}
+});
 
 async function loadFromGithubData() {
   try {
@@ -1643,7 +1643,7 @@ async function loadFromGithubData() {
       }
     }
   } catch (e) { /* silent */ }
-});
+}
 
 function addPdfs(files) {
   const names = new Set(state.pdfs.map(p => p.name));
