@@ -2,90 +2,461 @@
 <html lang="lv">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Konduktora Darba Kalendārs</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Darba Kalendārs v3.0 — Vilciena Konduktors</title>
 <style>
-  body { margin: 0; padding: 0; background: #0c0e14; }
-  * { box-sizing: border-box; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARBA KALENDĀRS v3.0 — Dark Theme
+   Pārņemts no Claude Code, pārbūvēts ar Hermes Agent
+   ═══════════════════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+
+:root {
+  --bg: #0c0e14;
+  --bg-card: #161820;
+  --bg-input: #0f1117;
+  --border: #2a2d3a;
+  --text: #e8eaf0;
+  --text-dim: #6b7280;
+  --text-muted: #4a4d5a;
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --blue: #93c5fd;
+  --blue-bg: #1a2035;
+  --blue-border: #2a3a5c;
+  --purple: #a78bfa;
+  --purple-bg: #1f1535;
+  --purple-border: #3b2a5c;
+  --green: #4ade80;
+  --green-bg: #1f2a20;
+  --green-border: #2a5c35;
+  --red: #f87171;
+  --red-bg: #2a1515;
+  --red-border: #3a2020;
+  --teal: #2dd4bf;
+  --teal-bg: #0f1a1a;
+  --teal-border: #1a3a35;
+  --orange: #f59e0b;
+  --orange-bg: #2a1a10;
+  --orange-border: #5c3a1a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Mono', 'Courier New', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-card); }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+
+/* Buttons */
+.btn {
+  background: var(--accent); color: var(--bg); border: none;
+  padding: 12px 28px; font-family: 'Bebas Neue', sans-serif; font-size: 16px;
+  letter-spacing: 2px; cursor: pointer; border-radius: 6px; transition: all .2s;
+}
+.btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 20px rgba(245,158,11,.4); }
+.btn:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-ghost {
+  background: transparent; color: #9ca3af; border: 1px solid var(--border);
+  padding: 8px 16px; font-family: 'DM Mono', monospace; font-size: 11px;
+  cursor: pointer; border-radius: 4px; transition: all .2s;
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm {
+  background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border);
+  padding: 6px 14px; font-family: 'DM Mono', monospace; font-size: 11px;
+  cursor: pointer; border-radius: 4px; transition: all .2s;
+}
+.btn-sm:hover { background: var(--blue-border); color: #bfdbfe; }
+.btn-red {
+  background: transparent; color: var(--red); border: 1px solid var(--red-border);
+  padding: 6px 14px; font-size: 11px; cursor: pointer; border-radius: 4px; transition: all .2s;
+}
+.btn-red:hover { background: var(--red-bg); border-color: var(--red); }
+
+/* Inputs */
+textarea, input[type=text], input[type=number] {
+  background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+  padding: 14px; border-radius: 8px; font-family: 'DM Mono', monospace;
+  font-size: 12px; outline: none; transition: border .2s; line-height: 1.6;
+}
+textarea:focus, input[type=text]:focus, input[type=number]:focus { border-color: var(--accent); }
+input[type=text], input[type=number] { padding: 8px 12px; border-radius: 6px; }
+textarea { resize: vertical; width: 100%; }
+select {
+  background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 12px; border-radius: 6px; font-family: 'DM Mono', monospace;
+  font-size: 12px; outline: none; cursor: pointer;
+}
+
+/* Drop zone */
+.dropzone {
+  border: 2px dashed var(--border); border-radius: 10px; padding: 20px;
+  text-align: center; cursor: pointer; transition: all .2s; background: var(--bg-card);
+}
+.dropzone:hover { border-color: var(--accent); background: #1c1f2b; }
+
+/* Calendar cells */
+.dc {
+  border-radius: 8px; padding: 9px 7px; min-height: 86px; cursor: pointer;
+  transition: all .15s; position: relative; border: 1px solid transparent; user-select: none;
+}
+.dc:hover { transform: scale(1.05); z-index: 10; }
+.dw { background: var(--blue-bg); border-color: var(--blue-border); }
+.dw:hover { border-color: #3b82f6; box-shadow: 0 0 14px rgba(59,130,246,.3); }
+.dn { background: var(--purple-bg); border-color: var(--purple-border); }
+.dn:hover { border-color: #8b5cf6; box-shadow: 0 0 14px rgba(139,92,246,.3); }
+.dp { background: var(--green-bg); border-color: var(--green-border); }
+.dp:hover { border-color: #22c55e; box-shadow: 0 0 14px rgba(34,197,94,.3); }
+.do { background: #1a1118; border-color: #3a2025; }
+.do:hover { border-color: #ef4444; box-shadow: 0 0 14px rgba(239,68,68,.3); }
+.dnf { background: var(--orange-bg); border-color: var(--orange-border); }
+.sel.dw { border-color: #3b82f6 !important; box-shadow: 0 0 20px rgba(59,130,246,.5) !important; }
+.sel.dn { border-color: #8b5cf6 !important; box-shadow: 0 0 20px rgba(139,92,246,.5) !important; }
+.sel.dp { border-color: #22c55e !important; box-shadow: 0 0 20px rgba(34,197,94,.5) !important; }
+.sel.do { border-color: #ef4444 !important; box-shadow: 0 0 20px rgba(239,68,68,.3) !important; }
+
+/* Tags */
+.tg {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; letter-spacing: 1px;
+}
+.tag-b { background: #111318; color: var(--text-muted); border: 1px solid #1a1d26; }
+.tag-w { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border); }
+.tag-n { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+.tag-p { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+
+/* Edit row */
+.erow {
+  display: grid; grid-template-columns: 28px 1fr 80px auto; gap: 6px;
+  align-items: center; padding: 5px 8px; border-radius: 6px; transition: background .15s;
+}
+.erow:hover { background: var(--bg-card); }
+.erow.wknd { background: #15130a; }
+.erow.wknd:hover { background: #1c180a; }
+
+/* Progress bar */
+.pb { height: 3px; background: #1c1f2b; border-radius: 2px; overflow: hidden; }
+.pf { height: 100%; background: linear-gradient(90deg, var(--accent), #ef4444); border-radius: 2px; transition: width .4s; }
+
+/* Stats card */
+.sc { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; }
+
+/* Animations */
+@keyframes pulse { 0%,80%,100% { opacity: .2; transform: scale(.9) } 40% { opacity: 1; transform: scale(1) } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn .3s ease; }
+
+/* Layout */
+.header {
+  border-bottom: 1px solid #1c1f2b; padding: 14px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.container { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
+.title-lg { font-family: 'Bebas Neue', sans-serif; font-size: 40px; letter-spacing: 5px; line-height: 1; }
+.title-md { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 4px; }
+.title-sm { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 4px; color: var(--accent); }
+.subtitle { font-size: 9px; color: var(--text-muted); letter-spacing: 2px; }
+.label { font-size: 11px; color: var(--accent); letter-spacing: 2px; margin-bottom: 8px; }
+.hint { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; margin-top: 10px; }
+.success-badge { background: #1a2a1a; border: 1px solid var(--green-border); border-radius: 8px; padding: 10px 14px; font-size: 11px; color: var(--green); }
+.error-badge { background: var(--red-bg); border: 1px solid var(--red); border-radius: 8px; padding: 10px 14px; font-size: 11px; color: var(--red); }
+.code-box {
+  background: var(--bg-input); border-radius: 6px; padding: 10px 14px;
+  font-size: 11px; color: #9ca3af; line-height: 1.7; font-family: monospace;
+}
+.edit-inp {
+  background: var(--bg-input); border: 1px solid var(--accent); color: var(--text);
+  padding: 4px 8px; border-radius: 4px; font-family: 'DM Mono', monospace;
+  font-size: 12px; outline: none; width: 100%;
+}
+
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.6); display: flex; align-items: center;
+  justify-content: center; z-index: 100;
+}
+.modal {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px; max-width: 400px; width: 90%; animation: fadeIn .2s ease;
+}
+
+/* Hermes section */
+.hermes-card {
+  background: var(--purple-bg); border: 1px solid var(--purple-border);
+  border-radius: 10px; padding: 16px; margin-top: 16px;
+}
+.hermes-card h3 { color: var(--purple); font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; margin-bottom: 8px; }
 </style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel">
-var { useState, useRef, useCallback, useEffect } = React;
 
-// Konduktora Darba Kalendārs v4.0 — GitHub Pages + Gemini API
-var GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+<!-- ═══════════════ HEADER ═══════════════ -->
+<div class="header">
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <div style="display: flex; flex-direction: column; gap: 3px;">
+      <div style="width: 26px; height: 3px; background: var(--accent); border-radius: 2px; opacity: 1;"></div>
+      <div style="width: 26px; height: 3px; background: var(--accent); border-radius: 2px; opacity: 0.65;"></div>
+      <div style="width: 26px; height: 3px; background: var(--accent); border-radius: 2px; opacity: 0.35;"></div>
+    </div>
+    <div>
+      <div class="title-sm">DARBA KALENDĀRS</div>
+      <div class="subtitle">VILCIENA KONDUKTORS · GRAFIKA PĀRVALDNIEKS</div>
+    </div>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+  <button class="btn-ghost" id="btn-delete-month" style="display:none; color: var(--red); border-color: #3a2020;" onclick="deleteMonth()">🗑 Dzēst mēnesi</button>
+  <button class="btn-ghost" id="btn-new-month" style="display:none" onclick="goToNewMonth()">+ JAUNS MĒNESIS</button>
+    <button class="btn-ghost" id="btn-edit" style="display:none" onclick="goToEdit()">✏ REDIĢĒT</button>
+  </div>
+</div>
+
+<div class="container">
+  <!-- ═══════════ STEP 1: PASTE ═══════════ -->
+  <div id="step-paste">
+    <div id="back-to-cal" style="display:none; margin-bottom: 16px;">
+      <button class="btn-ghost" onclick="goBackToCalendar()" style="font-size: 13px;">← Atpakaļ uz kalendāru</button>
+    </div>
+    <div style="text-align: center; margin-bottom: 32px;">
+      <div class="title-lg">
+        IELĪMĒ GRAFIKU<br><span style="color: var(--accent);">VAI IZMANTO HERMES</span>
+      </div>
+      <div class="hint" style="margin-top: 12px;">IZVĒLIES VIENU NO DIVIEM CEĻIEM ↓</div>
+    </div>
+
+    <!-- CEĻŠ A: Gemini (universāls) -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;">
+      <div class="label" style="display: flex; align-items: center; gap: 8px;">
+        <span>📋 GEMINI PROMPT (universāls — kopē un izmanto)</span>
+      </div>
+      <div class="code-box">
+        Lūdzu nolasi šo darba grafika bildi un izvadi tabulu šādā formātā:<br>
+        1: /70174<br>2: b<br>3: 7117<br>...<br>
+        Kur "/" pirms numura nozīmē naktsmainis (darbs sākas iepriekšējā dienā),<br>
+        "b" = brīvdiena, "D" = dežūra (16h), "D10" = dežūra 10h.<br>
+        Tūres numuri ir 4-5 ciparu skaitļi (piem., 5001, 7117, 701/74).<br>
+        Neraksti neko citu, tikai šo tabulu.
+      </div>
+    </div>
+
+    <!-- CEĻŠ B: Hermes Auto (personīgs) -->
+    <div class="hermes-card" style="margin-bottom: 20px;">
+      <h3>🤖 HERMES AUTO (personīgais ceļš)</h3>
+      <p style="font-size: 11px; color: #c4b5fd; margin-bottom: 12px; line-height: 1.6;">
+        Tev ir Hermes Agent — izmanto viņu! Nav jāiet uz Gemini, jākopē, jāpārslēdzas.
+      </p>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn-sm" onclick="copyHermesPrompt()" style="background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border);">
+          📋 Kopēt Hermes Promptu
+        </button>
+        <span style="font-size: 10px; color: var(--text-dim); display: flex; align-items: center;">
+          → ielīmē Hermes čatā + pievieno bildi → saņem tekstu → ielīmē šeit ↓
+        </span>
+      </div>
+      <div id="hermes-copied" style="display:none; margin-top: 8px; font-size: 10px; color: var(--green);">
+        ✓ Prompt nokopēts! Ielīmē to Hermes čatā kopā ar grafika bildi.
+      </div>
+    </div>
+
+    <div style="margin-bottom: 16px;">
+      <div class="label">IELĪMĒ GEMINI (VAI HERMES) ATBILDI:</div>
+      <textarea id="gemini-input" rows="14"
+        placeholder="1: /70174&#10;2: b&#10;3: 7117&#10;4: 7628&#10;5: 70349&#10;6: b&#10;7: 70259&#10;..."></textarea>
+    </div>
+
+    <div id="paste-success" style="display:none;" class="success-badge"></div>
+    <div id="paste-error" style="display:none;" class="error-badge"></div>
+
+    <div style="text-align: center;">
+      <button class="btn" id="btn-next" disabled style="min-width: 260px;" onclick="goToEdit()">
+        TĀLĀK → PĀRBAUDĪT UN REDIĢĒT
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════ STEP 2: EDIT ═══════════ -->
+  <div id="step-edit" style="display:none;">
+    <div style="margin-bottom: 16px;">
+      <button class="btn-ghost" onclick="setStep(STEPS.CALENDAR); renderCalendar();" style="font-size: 13px;">← Atpakaļ uz kalendāru</button>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <div class="title-md">PĀRBAUDI UN REDIĢĒ</div>
+        <div style="font-size: 11px; color: var(--text-muted); letter-spacing: 1px;">KLIKŠĶINI UZ TŪRES LAI LABOTU · PIEVIENO PDF FAILUS</div>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="font-size: 11px; color: var(--text-dim);">Mēnesis:</span>
+          <select id="meta-month">
+            <option value="">—</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="font-size: 11px; color: var(--text-dim);">Gads:</span>
+          <input type="number" id="meta-year" style="width: 80px;" value="2026">
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+      <!-- Schedule table -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px;">
+        <div style="font-size: 10px; color: var(--accent); letter-spacing: 2px; margin-bottom: 12px;">GRAFIKS — KLIKŠĶINI LAI LABOTU</div>
+        <div style="display: grid; grid-template-columns: 28px 1fr 80px auto; gap: 6px; margin-bottom: 8px; padding: 0 8px;">
+          <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">D</div>
+          <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">TŪRE</div>
+          <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">TIPS</div>
+          <div></div>
+        </div>
+        <div id="edit-rows" style="max-height: 460px; overflow-y: auto;"></div>
+      </div>
+
+      <!-- PDF upload -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px;">
+        <div style="font-size: 10px; color: var(--accent); letter-spacing: 2px; margin-bottom: 12px;">TŪRU PDF KATALOGI</div>
+        <div class="dropzone" id="pdf-dropzone" onclick="document.getElementById('pdf-input').click()">
+          <div style="font-size: 28px; margin-bottom: 6px;">📄</div>
+          <div style="font-size: 12px; color: var(--text-dim);">Ievelc PDF failus šeit vai klikšķini</div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Tūru aprakstu PDF ar laikiem</div>
+        </div>
+        <input type="file" id="pdf-input" accept="application/pdf" multiple style="display:none;">
+        <div id="pdf-list" style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;"></div>
+      </div>
+    </div>
+
+    <div id="edit-error" style="display:none;" class="error-badge" style="margin-bottom: 16px;"></div>
+
+    <div style="text-align: center;">
+      <button class="btn" id="btn-build" onclick="buildCalendar()" style="min-width: 260px;">
+        🔨 VEIDOT KALENDĀRU
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════ STEP 3: LOADING ═══════════ -->
+  <div id="step-loading" style="display:none; text-align: center; padding: 60px 0;">
+    <div style="font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 3px; margin-bottom: 20px;">APSTRĀDĀ...</div>
+    <div class="pb" style="max-width: 400px; margin: 0 auto 16px;">
+      <div class="pf" id="load-bar" style="width: 0%;"></div>
+    </div>
+    <div id="load-text" style="font-size: 12px; color: var(--text-dim);"></div>
+  </div>
+
+  <!-- ═══════════ STEP 4: CALENDAR ═══════════ -->
+  <div id="step-calendar" style="display:none;">
+    <!-- Stats bar -->
+    <div id="stats-bar" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;"></div>
+
+    <!-- Calendar grid -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="btn-ghost" onclick="changeMonth(-1)" title="Iepriekšējais mēnesis" style="font-size: 16px; padding: 4px 10px;">◀</button>
+          <div style="font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 4px; min-width: 180px; text-align: center;" id="cal-month-title"></div>
+          <button class="btn-ghost" onclick="changeMonth(1)" title="Nākamais mēnesis" style="font-size: 16px; padding: 4px 10px; color: var(--accent);">▶</button>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <span class="tg tag-w">Darba</span>
+          <span class="tg tag-n">Nakts</span>
+          <span class="tg tag-p">Nakts (iepr.)</span>
+          <span class="tg tag-b">Brīvdiena</span>
+        </div>
+      </div>
+      <div id="cal-days-header" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 8px;"></div>
+      <div id="cal-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;"></div>
+    </div>
+
+    <!-- Day detail card -->
+    <div id="day-detail" style="display:none;"></div>
+
+    <!-- Add PDF button -->
+    <div style="text-align: center; margin-top: 16px;">
+      <input type="file" id="pdf-input-cal" accept="application/pdf" multiple style="display:none;" onchange="addExtraPdfs(this.files)">
+      <button class="btn-ghost" onclick="document.getElementById('pdf-input-cal').click()" style="font-size: 13px; padding: 10px 20px;">
+        📄 + PIEVIENOT PDF FAILUS
+      </button>
+      <span style="font-size: 10px; color: var(--text-muted); margin-left: 10px;" id="extra-pdf-hint"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SCRIPTS ═══════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
 const MONTH_LV = ["","Janvāris","Februāris","Marts","Aprīlis","Maijs","Jūnijs",
   "Jūlijs","Augusts","Septembris","Oktobris","Novembris","Decembris"];
 const DAY_LV = ["Pr","Ot","Tr","Ce","Pk","Se","Sv"];
 const DOW_LV = ["","PIRMDIENA","OTRDIENA","TREŠDIENA","CETURTDIENA","PIEKTDIENA","SESTDIENA","SVĒTDIENA"];
+const STEPS = { PASTE: 'paste', EDIT: 'edit', LOADING: 'loading', CALENDAR: 'calendar' };
 
-// Fetch with timeout
-async function fetchWithTimeout(url, options, timeoutMs) {
-  var controller = new AbortController();
-  var timer = setTimeout(function() { controller.abort(); }, timeoutMs || 120000);
-  try {
-    var res = await fetch(url, Object.assign({}, options, { signal: controller.signal }));
-    clearTimeout(timer);
-    return res;
-  } catch (e) {
-    clearTimeout(timer);
-    if (e.name === "AbortError") throw new Error("Timeout — serveris neatbildēja 2 min laikā");
-    throw e;
-  }
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+let state = {
+  step: STEPS.PASTE,
+  geminiText: '',
+  parsed: null,
+  editSchedule: {},
+  metaMonth: '',
+  metaYear: new Date().getFullYear(),
+  pdfs: [],
+  calData: null,
+  error: null,
+  selectedDay: null,
+  editingDay: null,
+  pdfTours: null
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function normalizeTour(raw) {
+  if (!raw) return raw;
+  const s = String(raw).trim();
+  if (!s || s.toLowerCase() === 'b' || s === '-' || s.toLowerCase() === 'd' || s.toLowerCase() === 'd10') return s;
+  if (s.includes('/')) return s;
+  // Handle D/D10 duty patterns
+  if (/^D10?$/i.test(s)) return s.toUpperCase();
+  // 5-digit tour numbers → "xxx/xx" format (e.g., "70459" → "704/59")
+  if (/^\d{5}$/.test(s)) return s.slice(0, 3) + '/' + s.slice(3);
+  // 4-digit tour numbers → keep as-is (e.g., "7226")
+  if (/^\d{4}$/.test(s)) return s;
+  return s;
 }
 
-// Call Gemini API (works everywhere with user's API key)
-async function callGemini(pdfParts, promptText, apiKey) {
-  var parts = [];
-  for (var i = 0; i < pdfParts.length; i++) {
-    parts.push({ inline_data: { mime_type: "application/pdf", data: pdfParts[i] } });
+function lookupTour(tours, id) {
+  if (!tours || !id) return null;
+  if (tours[id]) return tours[id];
+  const n = normalizeTour(id);
+  if (n !== id && tours[n]) return tours[n];
+  const ns = id.replace('/', '');
+  if (ns !== id && tours[ns]) return tours[ns];
+  // Fuzzy match
+  const idClean = id.replace(/[\s/]/g, '').toLowerCase();
+  const nClean = n.replace(/[\s/]/g, '').toLowerCase();
+  for (const k of Object.keys(tours)) {
+    const kClean = k.replace(/[\s/]/g, '').toLowerCase();
+    if (kClean === idClean || kClean === nClean) return tours[k];
   }
-  parts.push({ text: promptText });
-  var res = await fetchWithTimeout(GEMINI_API_URL + "?key=" + apiKey, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ parts: parts }] }),
-  }, 120000);
-  var data = await res.json();
-  if (data.error) throw new Error("Gemini: " + (data.error.message || JSON.stringify(data.error)));
-  if (!data.candidates || !data.candidates[0]) throw new Error("Gemini: nav atbildes");
-  var text = data.candidates[0].content.parts.map(function(p) { return p.text || ""; }).filter(Boolean).join("");
-  if (!text) throw new Error("Gemini: tukša atbilde");
-  return text;
-}
-
-// Call AI — Gemini only for GitHub Pages
-async function callAI(pdfParts, promptText, geminiKey, maxTokens) {
-  if (!geminiKey) {
-    throw new Error("Nav Gemini API atslēgas! Atver ⚙ iestatījumus un ievadi atslēgu.\n\nIegūsti bezmaksas: aistudio.google.com → Get API key");
-  }
-  var result = await callGemini(pdfParts, promptText, geminiKey);
-  return { text: result, provider: "Gemini" };
-}
-
-function toBase64(file) {
-  return new Promise(function(res, rej) {
-    var r = new FileReader();
-    r.onload = function() { res(r.result.split(",")[1]); };
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
+  return null;
 }
 
 function matchesDow(pattern, dow) {
-  if (!pattern || pattern === "1-7d") return true;
-  var p = pattern.replace(/d$/i, "");
-  var parts = p.split(",");
-  for (var i = 0; i < parts.length; i++) {
-    var part = parts[i];
-    if (part.includes("-")) {
-      var ab = part.split("-").map(Number);
-      if (dow >= ab[0] && dow <= ab[1]) return true;
+  if (!pattern || pattern === '1-7d') return true;
+  const p = pattern.replace(/d$/i, '');
+  for (const part of p.split(',')) {
+    if (part.includes('-')) {
+      const [a, b] = part.split('-').map(Number);
+      if (dow >= a && dow <= b) return true;
     } else if (parseInt(part) === dow) return true;
   }
   return false;
@@ -93,1477 +464,1035 @@ function matchesDow(pattern, dow) {
 
 function getBestVariant(variants, dow) {
   if (!variants || variants.length === 0) return null;
-  return variants.find(function(v) { return matchesDow(v.dayPattern, dow); }) || variants[0];
+  return variants.find(v => matchesDow(v.dayPattern, dow)) || variants[0];
 }
 
-// Check if shift crosses midnight (end time < start time)
 function crossesMidnight(start, end) {
-  if (!start || !end || start === "?" || end === "?") return false;
-  var sh = start.split(":").map(Number);
-  var eh = end.split(":").map(Number);
-  return (eh[0] * 60 + eh[1]) < (sh[0] * 60 + sh[1]);
+  if (!start || !end || start === '?' || end === '?') return false;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  return (eh * 60 + em) < (sh * 60 + sm);
 }
 
 function calcHours(start, end) {
-  if (!start || !end || start === "?" || end === "?") return null;
-  var sh = start.split(":").map(Number);
-  var eh = end.split(":").map(Number);
-  var m = (eh[0] * 60 + eh[1]) - (sh[0] * 60 + sh[1]);
+  if (!start || !end || start === '?' || end === '?') return null;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let m = (eh * 60 + em) - (sh * 60 + sm);
   if (m < 0) m += 1440;
-  return (m / 60).toFixed(1);
+  return (m / 60);
 }
 
-function normalizeTour(raw) {
-  if (!raw) return raw;
-  var s = String(raw).trim();
-  if (!s || s.toLowerCase() === "b" || s === "-") return s;
-  if (s.includes("/")) return s;
-  if (/^7\d{4}$/.test(s)) return s.slice(0, 3) + "/" + s.slice(3);
-  return s;
+function daysInMonth(month, year) {
+  const m = parseInt(month);
+  if (!m || !year) return 31;
+  return new Date(year, m, 0).getDate();
 }
 
-function lookupTour(tours, id) {
-  if (!tours || !id) return null;
-  if (tours[id]) return tours[id];
-  var n = normalizeTour(id);
-  if (n !== id && tours[n]) return tours[n];
-  var ns = id.replace("/", "");
-  if (ns !== id && tours[ns]) return tours[ns];
-  var idClean = id.replace(/[\s/]/g, "").toLowerCase();
-  var nClean = n.replace(/[\s/]/g, "").toLowerCase();
-  var keys = Object.keys(tours);
-  for (var i = 0; i < keys.length; i++) {
-    var kClean = keys[i].replace(/[\s/]/g, "").toLowerCase();
-    if (kClean === idClean || kClean === nClean) return tours[keys[i]];
-  }
-  return null;
+function getDow(day, month, year) {
+  const m = parseInt(month);
+  if (!m || !year) return 1;
+  const w = new Date(year, m - 1, day).getDay();
+  return w === 0 ? 7 : w;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GEMINI TEXT PARSER
+// ═══════════════════════════════════════════════════════════════════════════
 
 function parseGeminiText(text) {
-  var lines = text.split(/\n/).map(function(l) { return l.trim(); }).filter(Boolean);
-  var result = {};
-  var detectedMonth = null;
-  var detectedYear = null;
+  const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const result = {};
+  let detectedMonth = null;
+  let detectedYear = null;
 
-  var headerLines = lines.slice(0, 6);
-  for (var h = 0; h < headerLines.length; h++) {
-    var line = headerLines[h];
-    var ym = line.match(/(\d{4})/);
-    if (ym) detectedYear = parseInt(ym[1]);
-    for (var mi = 1; mi <= 12; mi++) {
-      if (line.toLowerCase().includes(MONTH_LV[mi].toLowerCase())) { detectedMonth = mi; break; }
+  // Detect month/year from header — ONLY accept years 2020-2030
+  for (const line of lines.slice(0, 6)) {
+    const ym = line.match(/\b(20[2-9]\d)\b/);
+    if (ym) {
+      const y = parseInt(ym[1]);
+      if (y >= 2020 && y <= 2030) detectedYear = y;
     }
-    var eng = ["","january","february","march","april","may","june","july","august","september","october","november","december"];
-    for (var ei = 1; ei <= 12; ei++) {
-      if (line.toLowerCase().includes(eng[ei])) { detectedMonth = ei; break; }
+    for (let i = 1; i <= 12; i++) {
+      if (line.toLowerCase().includes(MONTH_LV[i].toLowerCase())) { detectedMonth = i; break; }
+    }
+    const eng = ["","january","february","march","april","may","june","july","august","september","october","november","december"];
+    for (let i = 1; i <= 12; i++) {
+      if (line.toLowerCase().includes(eng[i])) { detectedMonth = i; break; }
     }
   }
 
-  for (var li = 0; li < lines.length; li++) {
-    var ln = lines[li];
-    if (/^[-|=\s]+$/.test(ln)) continue;
-    var dayMatch = ln.match(/(?:^|\||\s)(\d{1,2})(?:\s*[:.\-|]|\s+)/);
-    if (!dayMatch) continue;
-    var day = parseInt(dayMatch[1]);
-    if (day < 1 || day > 31) continue;
-    var rest = ln.slice(ln.indexOf(dayMatch[0]) + dayMatch[0].length).trim()
-      .replace(/\|/g, " ").replace(/\*\*/g, "").trim();
-    if (!rest) continue;
-    var prevNight = /^\/\s*\d/.test(rest) || rest.includes("(/)") || /overnight|prev/i.test(rest);
-    var tourMatch = rest.match(/\b(7\d{3,4})\b/);
-    var isOff = /^\s*b\s*$/i.test(rest.replace(/[/\s]/g, "")) || /\bbrīv/i.test(rest) || /\bfree\b/i.test(rest) || /\boff\b/i.test(rest);
-    var isDuty = /^\s*d\s*$/i.test(rest.replace(/[/\s]/g, "")) || /^\s*d\s*\d/i.test(rest.replace(/[/\s]/g, ""));
-    var dutyHours = 16;
-    if (isDuty) {
-      var dMatch = rest.match(/d\s*(\d+\.?\d*)/i);
-      if (dMatch) dutyHours = parseFloat(dMatch[1]);
-    }
-    if (isOff) {
-      result[day] = { tour: "b", prevNight: false };
-    } else if (isDuty) {
-      result[day] = { tour: "D", prevNight: false, dutyHours: dutyHours };
-    } else if (tourMatch) {
-      result[day] = { tour: normalizeTour(tourMatch[1]), prevNight: prevNight };
+  // Parse day:value pairs — handle multiple per line (e.g., "5: b 6: 70255 7: /70355")
+  const pairRegex = /(\d{1,2})\s*[:.\-]\s*(\/?[bBdD]\d*|\/?\d{4,5})\b/g;
+  for (const line of lines) {
+    if (/^[-|=\s]+$/.test(line)) continue;
+    let pm;
+    while ((pm = pairRegex.exec(line)) !== null) {
+      const day = parseInt(pm[1]);
+      if (day < 1 || day > 31) continue;
+      let raw = pm[2].trim();
+      const prevNight = raw.startsWith('/');
+      const cleaned = raw.replace(/^\/\s*/, '').trim();
+      const isOff = /^b$/i.test(cleaned);
+      const isDuty = /^D10?$/i.test(cleaned);
+
+      if (isOff) {
+        result[day] = { tour: 'b', prevNight: false };
+      } else if (isDuty) {
+        result[day] = { tour: cleaned.toUpperCase(), prevNight: false };
+      } else if (/^\d{4,5}$/.test(cleaned)) {
+        result[day] = { tour: normalizeTour(cleaned), prevNight };
+      }
     }
   }
+
   return { schedule: result, month: detectedMonth, year: detectedYear };
 }
 
-var STEPS = { PASTE: "paste", EDIT: "edit", LOADING: "loading", CALENDAR: "calendar" };
+// ═══════════════════════════════════════════════════════════════════════════
+// PDF PARSING (pdf.js — replaces Claude API)
+// ═══════════════════════════════════════════════════════════════════════════
 
-// Auto-format time input: 1530 → 15:30, 930 → 9:30, 08:30 stays
-function autoFormatTime(val) {
-  var clean = val.replace(/[^0-9:]/g, "");
-  if (clean.includes(":")) return clean;
-  if (clean.length === 4) return clean.slice(0, 2) + ":" + clean.slice(2);
-  if (clean.length === 3) return clean.slice(0, 1) + ":" + clean.slice(1);
-  return clean;
-}
+async function parseTourPdfs(files) {
+  const tours = {};
+  for (const file of files) {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-// Latvian public holidays (month-day) — fixed dates + Easter-based for each year
-function getLvHolidays(year) {
-  var fixed = [
-    [1,1],   // Jaungada diena
-    [5,1],   // Darba svētki
-    [5,4],   // Neatkarības atjaunošanas diena
-    [6,23],  // Līgo diena
-    [6,24],  // Jāņu diena
-    [11,18], // Proklamēšanas diena
-    [12,24], // Ziemassvētku vakars
-    [12,25], // Pirmie Ziemassvētki
-    [12,26], // Otrie Ziemassvētki
-    [12,31], // Vecgada diena
-  ];
-  // Easter calculation (Anonymous Gregorian algorithm)
-  var a = year % 19;
-  var b = Math.floor(year / 100);
-  var c = year % 100;
-  var d = Math.floor(b / 4);
-  var e = b % 4;
-  var f = Math.floor((b + 8) / 25);
-  var g = Math.floor((b - f + 1) / 3);
-  var h = (19 * a + b - d - g + 15) % 30;
-  var i = Math.floor(c / 4);
-  var k = c % 4;
-  var l = (32 + 2 * e + 2 * i - h - k) % 7;
-  var m = Math.floor((a + 11 * h + 22 * l) / 451);
-  var month = Math.floor((h + l - 7 * m + 114) / 31);
-  var day = ((h + l - 7 * m + 114) % 31) + 1;
-  // Easter Sunday
-  var easter = new Date(year, month - 1, day);
-  // Good Friday = Easter - 2, Easter Monday = Easter + 1
-  var goodFriday = new Date(easter); goodFriday.setDate(easter.getDate() - 2);
-  var easterMon = new Date(easter); easterMon.setDate(easter.getDate() + 1);
-  // Whit Sunday (Vasarsvētki) = Easter + 49
-  var whit = new Date(easter); whit.setDate(easter.getDate() + 49);
-  fixed.push([goodFriday.getMonth() + 1, goodFriday.getDate()]);  // Lielā piektdiena
-  fixed.push([easter.getMonth() + 1, easter.getDate()]);          // Pirmās Lieldienas
-  fixed.push([easterMon.getMonth() + 1, easterMon.getDate()]);    // Otrās Lieldienas
-  fixed.push([whit.getMonth() + 1, whit.getDate()]);              // Vasarsvētki
-  return fixed;
-}
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      
+      // Sort items by y-position (top-to-bottom, pdf.js has origin at bottom-left)
+      // Higher y = closer to top of page, so sort descending
+      const items = textContent.items.map(item => ({
+        str: item.str,
+        x: item.transform[4],
+        y: item.transform[5]
+      }));
+      items.sort((a, b) => {
+        const ydiff = Math.round(b.y) - Math.round(a.y); // descending = top first
+        if (Math.abs(ydiff) > 3) return ydiff;
+        return a.x - b.x;
+      });
 
-function isLvHoliday(year, month, day) {
-  var holidays = getLvHolidays(year);
-  for (var i = 0; i < holidays.length; i++) {
-    if (holidays[i][0] === month && holidays[i][1] === day) return true;
+      // Group items into lines by y-position
+      const lines = [];
+      let currentLine = [];
+      let currentY = null;
+      for (const item of items) {
+        if (!item.str.trim()) continue;
+        if (currentY === null || Math.abs(item.y - currentY) > 3) {
+          if (currentLine.length > 0) lines.push(currentLine);
+          currentLine = [item];
+          currentY = item.y;
+        } else {
+          currentLine.push(item);
+        }
+      }
+      if (currentLine.length > 0) lines.push(currentLine);
+
+      // Convert each line to text
+      const textLines = lines.map(line => line.map(it => it.str).join(' ').trim());
+      const fullText = textLines.join('\n');
+
+      // Split into tour blocks: find lines starting with a tour number
+      const tourRegex = /^(\d{3,4}\/\d{2,3}|\d{4,5})\b/;
+      const tourBlocks = [];
+      let currentBlock = null;
+
+      for (const line of textLines) {
+        const tMatch = line.match(tourRegex);
+        if (tMatch) {
+          // Save previous block
+          if (currentBlock && currentBlock.tourId) {
+            tourBlocks.push(currentBlock);
+          }
+          // Start new block
+          let tourId = tMatch[1].trim();
+          // Normalize: "70459" → "704/59"
+          if (!tourId.includes('/') && tourId.length === 5) {
+            tourId = tourId.slice(0, 3) + '/' + tourId.slice(3);
+          }
+          currentBlock = { tourId, text: line };
+        } else if (currentBlock) {
+          currentBlock.text += '\n' + line;
+        }
+      }
+      if (currentBlock && currentBlock.tourId) {
+        tourBlocks.push(currentBlock);
+      }
+
+      // Parse each tour block
+      for (const block of tourBlocks) {
+        const text = block.text;
+        const tid = block.tourId;
+        
+        // Find hours decimal position (e.g., "10.00", "5.50")
+        const hoursMatch = /\b(\d{1,2}\.\d{2})\b/.exec(text);
+        if (!hoursMatch) continue;
+        const hours = parseFloat(hoursMatch[1]);
+        const hoursPos = hoursMatch.index;
+
+        // Find ALL times with their positions
+        const timeRegex = /(\d{2}:\d{2})(?::\d{2})?/g;
+        const timedTimes = [];
+        let tm;
+        while ((tm = timeRegex.exec(text)) !== null) {
+          timedTimes.push({ time: tm[1], pos: tm.index });
+        }
+        if (timedTimes.length < 2) continue;
+
+        // Find the two times closest to (and before) the hours decimal
+        // Sort by distance from hoursPos (only those before it)
+        const beforeTimes = timedTimes.filter(t => t.pos < hoursPos);
+        if (beforeTimes.length >= 2) {
+          // Take the LAST two before the hours — these are work start/end
+          const sorted = beforeTimes.sort((a, b) => a.pos - b.pos);
+          const startTime = sorted[sorted.length - 2].time;
+          const endTime = sorted[sorted.length - 1].time;
+
+          // Find day pattern
+          let dayPattern = '1-7d';
+          const dpPatterns = ['1-7d','1-5d','1-6d','2-6d','1-4d','2-5d','2-4d','1-3,5d',
+            '5d','6d','7d','1d','2d','3d','4d','1,7d','5,6,7d','1-4,6,7d',
+            '1-4,7d','6,7d','2-6,7d','1-5,7d','2-4,6,7d','5,6d'];
+          for (const dp of dpPatterns) {
+            if (text.includes(dp)) { dayPattern = dp; break; }
+          }
+
+          const entry = { dayPattern, startTime, endTime, hours: hours || parseFloat(calcHours(startTime, endTime)) };
+          if (!tours[tid]) tours[tid] = [];
+          const exists = tours[tid].some(t =>
+            t.dayPattern === entry.dayPattern &&
+            t.startTime === entry.startTime &&
+            t.endTime === entry.endTime
+          );
+          if (!exists) tours[tid].push(entry);
+        }
+      }
+    }
   }
+  return tours;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CALENDAR BUILDING
+// ═══════════════════════════════════════════════════════════════════════════
+
+function recalcOvernight(calendar, dim) {
+  for (let d = 1; d <= dim; d++) {
+    if (calendar[d] && calendar[d].type === 'work') calendar[d].overnight = false;
+  }
+  for (let d = 1; d < dim; d++) {
+    const a = calendar[d];
+    const b = calendar[d + 1];
+    if (a && b && a.type === 'work' && b.type === 'work'
+        && b.prevDayOvernight && a.tour === b.tour) {
+      calendar[d].overnight = true;
+      calendar[d + 1].hours = null;
+    }
+  }
+}
+
+async function buildCalendar() {
+  const metaMonth = state.metaMonth;
+  const metaYear = state.metaYear;
+  if (!metaMonth || !metaYear) { showError('Norādi mēnesi un gadu!'); return; }
+  if (state.pdfs.length === 0) { showError('Pievieno vismaz vienu tūru PDF!'); return; }
+
+  setStep(STEPS.LOADING);
+  state.error = null;
+  updateLoadBar(10, '📄 Nolasa tūru laikus no PDF...');
+
+  try {
+    const tours = await parseTourPdfs(state.pdfs);
+    state.pdfTours = tours;
+    const tourCount = Object.keys(tours).length;
+    updateLoadBar(60, `✓ Atrastas ${tourCount} tūres. Veido kalendāru...`);
+
+    const dim = daysInMonth(metaMonth, metaYear);
+    const calendar = {};
+
+    for (let d = 1; d <= dim; d++) {
+      const entry = state.editSchedule[d];
+      if (!entry || !entry.tour || entry.tour === 'b') {
+        calendar[d] = { type: 'off' };
+        continue;
+      }
+      const dow = getDow(d, metaMonth, metaYear);
+      const variants = lookupTour(tours, entry.tour);
+      const v = getBestVariant(variants, dow);
+      const prevN = entry.prevNight === true;
+
+      calendar[d] = {
+        type: 'work',
+        tour: entry.tour,
+        startTime: v ? v.startTime : '?',
+        endTime: v ? v.endTime : '?',
+        overnight: false,
+        prevDayOvernight: prevN,
+        hours: v ? (v.hours || calcHours(v.startTime, v.endTime)) : null,
+        notFound: !variants
+      };
+    }
+
+    recalcOvernight(calendar, dim);
+
+    state.calData = {
+      month: parseInt(metaMonth),
+      year: metaYear,
+      daysInMonth: dim,
+      calendar,
+      pdfTours: tours
+    };
+
+    // Also save to monthsData
+    if (!state._monthsData) state._monthsData = {};
+    const key = metaYear + '-' + String(parseInt(metaMonth)).padStart(2, '0');
+    state._monthsData[key] = {
+      calendar: JSON.parse(JSON.stringify(calendar)),
+      pdfTours: tours,
+      editSchedule: JSON.parse(JSON.stringify(state.editSchedule))
+    };
+
+    updateLoadBar(100, '✓ Gatavs!');
+    saveState();
+    setTimeout(() => {
+      setStep(STEPS.CALENDAR);
+      renderCalendar();
+    }, 500);
+
+  } catch (e) {
+    showError('Kļūda apstrādājot PDF: ' + e.message);
+    setStep(STEPS.EDIT);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateLoadBar(pct, text) {
+  document.getElementById('load-bar').style.width = pct + '%';
+  document.getElementById('load-text').textContent = text || '';
+}
+
+function renderEditRows() {
+  const container = document.getElementById('edit-rows');
+  if (!container) return;
+  const dim = daysInMonth(state.metaMonth, state.metaYear);
+  let html = '';
+
+  for (let d = 1; d <= dim; d++) {
+    const e = state.editSchedule[d] || { tour: 'b', prevNight: false };
+    const dow = getDow(d, state.metaMonth, state.metaYear);
+    const isWE = dow === 6 || dow === 7;
+    const isEditing = state.editingDay === d;
+    const isOff = !e.tour || e.tour === 'b';
+    const displayTour = e.prevNight ? '/' + e.tour : (e.tour || 'b');
+    const tagClass = isOff ? 'tag-b' : (e.prevNight ? 'tag-p' : 'tag-w');
+    const tagLabel = isOff ? 'Brīvdiena' : (e.prevNight ? 'Nakts (iepr.)' : 'Tūre');
+
+    html += `<div class="erow ${isWE ? 'wknd' : ''}">
+      <div style="font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: ${isWE ? 'var(--accent)' : 'var(--text-dim)'}; text-align: center;">${d}</div>`;
+
+    if (isEditing) {
+      html += `<input class="edit-inp" id="edit-inp-${d}" value="${displayTour}"
+        onkeydown="if(event.key==='Enter')saveEdit(${d})"
+        onblur="saveEdit(${d})" autofocus>`;
+    } else {
+      html += `<div style="cursor: pointer; font-size: 12px; color: ${isOff ? 'var(--text-muted)' : 'var(--text)'};"
+        onclick="startEdit(${d}, '${displayTour}')">${displayTour}</div>`;
+    }
+
+    html += `<span class="tg ${tagClass}">${tagLabel}</span>
+      <button class="btn-red" onclick="togglePrevNight(${d})" title="Pārslēgt nakts karodziņu">🌙</button>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function renderCalendar() {
+  if (!state.calData) return;
+  const { month, year, daysInMonth: dim, calendar } = state.calData;
+  const firstDow = (new Date(year, month - 1, 1).getDay()) || 7;
+
+  // Title
+  document.getElementById('cal-month-title').textContent = MONTH_LV[month] + ' ' + year;
+
+  // Day headers
+  const hdrEl = document.getElementById('cal-days-header');
+  hdrEl.innerHTML = DAY_LV.map((d, i) => {
+    const isWE = (i + 1) >= 6;
+    return `<div style="text-align: center; font-size: 11px; color: ${isWE ? 'var(--accent)' : 'var(--text-muted)'}; letter-spacing: 1px;">${d}</div>`;
+  }).join('');
+
+  // Grid
+  const gridEl = document.getElementById('cal-grid');
+  let cells = '';
+  // Empty cells before first day
+  for (let i = 1; i < firstDow; i++) {
+    cells += '<div></div>';
+  }
+  for (let d = 1; d <= dim; d++) {
+    const info = calendar[d];
+    const isOff = !info || info.type === 'off';
+    const isSel = state.selectedDay === d;
+
+    let cls = 'dc do'; // default: off day (teal-grey)
+    let label = '';
+    let timeStr = '';
+
+    if (info && info.type === 'work') {
+      if (info.notFound) cls = 'dc dnf';
+      else if (info.overnight || (info.prevDayOvernight && info.startTime !== '?' && crossesMidnight(info.startTime, info.endTime))) cls = 'dc dn';
+      else if (info.prevDayOvernight) cls = 'dc dp';
+      else cls = 'dc dw';
+
+      label = info.tour;
+      timeStr = info.startTime !== '?' ? `${info.startTime}-${info.endTime}` : '?';
+    }
+
+    if (isSel) cls += ' sel';
+
+    const dow = getDow(d, state.metaMonth || month, year || state.metaYear);
+    const dayName = DOW_LV[dow];
+
+    cells += `<div class="${cls}" onclick="selectDay(${d})">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <span style="font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--text);">${d}</span>
+        <span style="font-size: 8px; color: var(--text-muted);">${dayName.slice(0,2)}</span>
+      </div>
+      ${label ? `<div style="font-size: 14px; font-weight: bold; margin: 4px 0; color: ${info.notFound ? 'var(--accent)' : 'var(--text)'};">${label}</div>` : ''}
+      ${timeStr ? `<div style="font-size: 10px; color: var(--text-dim);">${timeStr}</div>` : ''}
+      ${info && info.hours ? `<div style="font-size: 9px; color: var(--text-muted);">${info.hours.toFixed(1)}h</div>` : ''}
+    </div>`;
+  }
+  gridEl.innerHTML = cells;
+
+  // Stats
+  const totalWork = Object.values(calendar).filter(d => d.type === 'work').length;
+  const totalOff = Object.values(calendar).filter(d => d.type === 'off').length;
+  const totalHrs = Object.values(calendar)
+    .filter(d => d.type === 'work' && d.hours)
+    .reduce((s, d) => s + d.hours, 0).toFixed(1);
+  const notFound = Object.values(calendar).filter(d => d.notFound).length;
+
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="sc" style="text-align: center;">
+      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">DARBA DIENAS</div>
+      <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--accent);">${totalWork}</div>
+    </div>
+    <div class="sc" style="text-align: center;">
+      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">BRĪVDIENAS</div>
+      <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--blue);">${totalOff}</div>
+    </div>
+    <div class="sc" style="text-align: center;">
+      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">KOPĀ STUNDAS</div>
+      <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--green);">${totalHrs}h</div>
+    </div>`;
+
+  renderDayDetail();
+}
+
+function selectDay(d) {
+  state.selectedDay = state.selectedDay === d ? null : d;
+  renderCalendar();
+}
+
+function renderDayDetail() {
+  const container = document.getElementById('day-detail');
+  if (!state.selectedDay || !state.calData) {
+    container.style.display = 'none';
+    return;
+  }
+  const d = state.selectedDay;
+  const info = state.calData.calendar[d];
+  if (!info) { container.style.display = 'none'; return; }
+
+  const dow = getDow(d, state.calData.month, state.calData.year);
+  const displayTour = info.type === 'off' ? 'b' : (info.prevDayOvernight ? '/' + info.tour : info.tour);
+  const isOff = info.type === 'off';
+
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="sc fade-in" style="margin-top: 12px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <div style="font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px;">
+          ${d}. ${MONTH_LV[state.calData.month]} — ${DOW_LV[dow]}
+        </div>
+        <span class="tg ${isOff ? 'tag-b' : (info.prevDayOvernight ? 'tag-p' : (info.overnight ? 'tag-n' : 'tag-w'))}">
+          ${isOff ? 'BRĪVDIENA' : (info.prevDayOvernight ? 'NAKTS (IEPR.)' : (info.overnight ? 'NAKTS' : 'DARBS'))}
+        </span>
+      </div>
+      <div style="display: grid; grid-template-columns: ${isOff ? '1fr' : 'repeat(3, 1fr)'}; gap: 12px; margin-bottom: 12px;">
+        <div class="sc">
+          <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">TŪRE</div>
+          ${isOff
+            ? `<div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif; color: var(--red);">BRĪVDIENA</div>`
+            : `<div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--accent);">${info.tour}</div>`}
+        </div>
+        ${!isOff ? `
+        <div class="sc">
+          <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">LAIKS</div>
+          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif;">${info.startTime} → ${info.endTime}</div>
+        </div>
+        <div class="sc">
+          <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">STUNDAS</div>
+          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif; color: var(--green);">${info.hours ? info.hours.toFixed(1) + 'h' : '?'}</div>
+        </div>` : ''}
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <input type="text" id="edit-tour-inp" class="edit-inp" style="flex: 2; min-width: 100px;" value="${displayTour}"
+          placeholder="Tūre (piem., 704/59, /71169, b)">
+        <span style="font-size: 10px; color: var(--text-dim);">no</span>
+        <input type="text" id="edit-start-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${info.startTime || ''}" placeholder="HH:MM">
+        <span style="font-size: 10px; color: var(--text-dim);">līdz</span>
+        <input type="text" id="edit-end-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${info.endTime || ''}" placeholder="HH:MM">
+        <button class="btn-sm" onclick="updateDayTour(${d})">💾 Saglabāt</button>
+      </div>
+      ${info.notFound ? '<div style="margin-top: 8px; font-size: 10px; color: var(--accent);">⚠ Tūre nav atrasta PDF katalogā</div>' : ''}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+function setStep(step) {
+  state.step = step;
+  document.getElementById('step-paste').style.display = step === STEPS.PASTE ? 'block' : 'none';
+  document.getElementById('step-edit').style.display = step === STEPS.EDIT ? 'block' : 'none';
+  document.getElementById('step-loading').style.display = step === STEPS.LOADING ? 'block' : 'none';
+  document.getElementById('step-calendar').style.display = step === STEPS.CALENDAR ? 'block' : 'none';
+
+  document.getElementById('btn-delete-month').style.display = step === STEPS.CALENDAR ? 'inline-block' : 'none';
+  document.getElementById('btn-new-month').style.display = step === STEPS.CALENDAR ? 'inline-block' : 'none';
+  document.getElementById('btn-edit').style.display = step === STEPS.CALENDAR ? 'inline-block' : 'none';
+
+  if (step === STEPS.EDIT) {
+    renderEditRows();
+    renderPdfList();
+  }
+  if (step === STEPS.CALENDAR) renderCalendar();
+}
+
+function goToEdit() {
+  if (state.step === STEPS.CALENDAR) {
+    setStep(STEPS.EDIT);
+    return;
+  }
+  state.error = null;
+  hideError();
+  setStep(STEPS.EDIT);
+}
+
+function deleteMonth() {
+  if (!state.calData) return;
+  if (!confirm('Vai tiešām dzēst ' + MONTH_LV[state.calData.month] + ' ' + state.calData.year + '?')) return;
+  state.calData = null;
+  state.pdfTours = null;
+  state.editSchedule = {};
+  state.metaMonth = '';
+  state.metaYear = new Date().getFullYear();
+  clearStorage();
+  setStep(STEPS.PASTE);
+}
+
+function goToNewMonth() {
+  // Save current calendar so we can go back
+  state._savedCalData = state.calData;
+  state._savedMonth = state.metaMonth;
+  state._savedYear = state.metaYear;
+  state._savedEditSchedule = JSON.parse(JSON.stringify(state.editSchedule));
+  state._savedPdfTours = state.pdfTours;
+
+  // Go to paste for new month
+  state.geminiText = '';
+  state.parsed = null;
+  state.editSchedule = {};
+  state.pdfs = [];
+  state.error = null;
+  state.selectedDay = null;
+  state.editingDay = null;
+  document.getElementById('gemini-input').value = '';
+  document.getElementById('paste-success').style.display = 'none';
+  document.getElementById('paste-error').style.display = 'none';
+  document.getElementById('meta-year').value = new Date().getFullYear();
+  document.getElementById('meta-month').value = '';
+  document.getElementById('pdf-list').innerHTML = '';
+  hideError();
+  setStep(STEPS.PASTE);
+  renderBackButton();
+}
+
+function goBackToCalendar() {
+  if (state._savedCalData) {
+    state.calData = state._savedCalData;
+    state.metaMonth = state._savedMonth;
+    state.metaYear = state._savedYear;
+    state.editSchedule = state._savedEditSchedule;
+    state.pdfTours = state._savedPdfTours;
+    state._savedCalData = null;
+    setStep(STEPS.CALENDAR);
+    renderCalendar();
+  }
+}
+
+function renderBackButton() {
+  const container = document.getElementById('back-to-cal');
+  if (container) {
+    container.style.display = state._savedCalData ? 'block' : 'none';
+  }
+}
+
+function changeMonth(delta) {
+  if (!state.calData) return;
+  const oldMonth = state.calData.month;
+  const oldYear = state.calData.year;
+
+  // Save current month's data
+  if (!state._monthsData) state._monthsData = {};
+  const oldKey = oldYear + '-' + String(oldMonth).padStart(2, '0');
+  state._monthsData[oldKey] = {
+    calendar: JSON.parse(JSON.stringify(state.calData.calendar)),
+    pdfTours: state.calData.pdfTours,
+    editSchedule: JSON.parse(JSON.stringify(state.editSchedule))
+  };
+
+  let m = oldMonth + delta;
+  let y = oldYear;
+  if (m < 1) { m = 12; y--; }
+  if (m > 12) { m = 1; y++; }
+
+  const newKey = y + '-' + String(m).padStart(2, '0');
+  const saved = state._monthsData[newKey];
+
+  if (saved) {
+    // Restore saved data
+    state.calData = {
+      month: m, year: y,
+      daysInMonth: daysInMonth(m, y),
+      calendar: saved.calendar,
+      pdfTours: saved.pdfTours || {}
+    };
+    state.editSchedule = saved.editSchedule || {};
+  } else {
+    // Fresh empty month
+    const cal = {};
+    for (let d = 1; d <= daysInMonth(m, y); d++) {
+      cal[d] = { type: 'off' };
+    }
+    state.calData = {
+      month: m, year: y,
+      daysInMonth: daysInMonth(m, y),
+      calendar: cal,
+      pdfTours: state.calData.pdfTours || {}
+    };
+    state.editSchedule = {};
+  }
+
+  state.metaMonth = String(m);
+  state.metaYear = y;
+  state.selectedDay = null;
+  saveState();
+  renderCalendar();
+}
+
+function reset() {
+  state = {
+    step: STEPS.PASTE,
+    geminiText: '',
+    parsed: null,
+    editSchedule: {},
+    metaMonth: '',
+    metaYear: new Date().getFullYear(),
+    pdfs: [],
+    calData: null,
+    error: null,
+    selectedDay: null,
+    editingDay: null,
+    pdfTours: null
+  };
+  document.getElementById('gemini-input').value = '';
+  document.getElementById('paste-success').style.display = 'none';
+  document.getElementById('paste-error').style.display = 'none';
+  document.getElementById('meta-year').value = new Date().getFullYear();
+  document.getElementById('meta-month').value = '';
+  document.getElementById('pdf-list').innerHTML = '';
+  hideError();
+  clearStorage();
+  setStep(STEPS.PASTE);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EDIT ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function startEdit(day, currentVal) {
+  state.editingDay = day;
+  renderEditRows();
+  setTimeout(() => {
+    const inp = document.getElementById('edit-inp-' + day);
+    if (inp) { inp.focus(); inp.select(); }
+  }, 50);
+}
+
+function saveEdit(day) {
+  const inp = document.getElementById('edit-inp-' + day);
+  if (!inp) return;
+  const raw = inp.value.trim();
+  if (!raw) { state.editingDay = null; renderEditRows(); return; }
+
+  const prevNight = raw.startsWith('/');
+  const cleaned = raw.replace(/^\/\s*/, '').trim();
+  const isOff = cleaned.toLowerCase() === 'b' || cleaned === '';
+  state.editSchedule[day] = {
+    tour: isOff ? 'b' : normalizeTour(cleaned),
+    prevNight: prevNight
+  };
+  state.editingDay = null;
+  renderEditRows();
+}
+
+function togglePrevNight(day) {
+  const current = state.editSchedule[day] || { tour: 'b', prevNight: false };
+  state.editSchedule[day] = { ...current, prevNight: !current.prevNight };
+  renderEditRows();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PDF UPLOAD
+// ═══════════════════════════════════════════════════════════════════════════
+
+function renderPdfList() {
+  const el = document.getElementById('pdf-list');
+  if (state.pdfs.length === 0) {
+    el.innerHTML = '<div style="font-size: 10px; color: var(--text-muted); text-align: center;">Nav pievienotu PDF failu</div>';
+    return;
+  }
+  el.innerHTML = state.pdfs.map((f, i) => `
+    <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 14px;">📄</span>
+        <span style="font-size: 11px;">${f.name}</span>
+        <span style="font-size: 9px; color: var(--text-muted);">${(f.size / 1024).toFixed(0)} KB</span>
+      </div>
+      <button class="btn-red" onclick="removePdf(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function removePdf(i) {
+  state.pdfs = state.pdfs.filter((_, idx) => idx !== i);
+  renderPdfList();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ERROR HANDLING
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showError(msg) {
+  state.error = msg;
+  const el = document.getElementById('edit-error');
+  if (el) { el.textContent = '⚠ ' + msg; el.style.display = 'block'; }
+}
+
+function hideError() {
+  state.error = null;
+  const el = document.getElementById('edit-error');
+  if (el) el.style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const STORAGE_KEY = 'darba-kalendars-v3';
+
+function saveState() {
+  try {
+    const data = {
+      calData: state.calData,
+      editSchedule: state.editSchedule,
+      metaMonth: state.metaMonth,
+      metaYear: state.metaYear,
+      monthsData: state._monthsData
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) { /* silent */ }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data.calData) {
+        state.calData = data.calData;
+        state.editSchedule = data.editSchedule || {};
+        state.metaMonth = data.metaMonth || '';
+        state.metaYear = data.metaYear || new Date().getFullYear();
+        state._monthsData = data.monthsData || {};
+        setStep(STEPS.CALENDAR);
+        renderCalendar();
+        return true;
+      }
+    }
+  } catch (e) { /* silent */ }
   return false;
 }
 
-// Calculate night hours (22:00-06:00) for a shift
-// For true overnight (same tour both days): count full 22:00-06:00 overlap once
-// For regular continuation days: each day counted separately
-function calcNightHours(startTime, endTime, isOvernightStart) {
-  if (!startTime || !endTime || startTime === "?" || endTime === "?") return 0;
-  var sh = startTime.split(":").map(Number);
-  var eh = endTime.split(":").map(Number);
-  var startMin = sh[0] * 60 + sh[1];
-  var endMin = eh[0] * 60 + eh[1];
-  var nightMins = 0;
-  
-  if (endMin >= startMin) {
-    // Same day shift (e.g. 08:00-20:00)
-    // Night = overlap with [0,360] or [1320,1440]
-    // [0, 360] = 00:00-06:00
-    nightMins += Math.max(0, Math.min(endMin, 360) - Math.max(startMin, 0));
-    // [1320, 1440] = 22:00-24:00
-    nightMins += Math.max(0, Math.min(endMin, 1440) - Math.max(startMin, 1320));
+function clearStorage() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* silent */ }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EDIT FROM CALENDAR
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateDayTour(day) {
+  const inp = document.getElementById('edit-tour-inp');
+  if (!inp || !state.calData) return;
+  const raw = inp.value.trim();
+  if (!raw) return;
+
+  const prevNight = raw.startsWith('/');
+  const cleaned = raw.replace(/^\/\s*/, '').trim();
+  const isOff = cleaned.toLowerCase() === 'b';
+
+  // Also read manual times
+  const startInp = document.getElementById('edit-start-inp');
+  const endInp = document.getElementById('edit-end-inp');
+  const manualStart = startInp ? startInp.value.trim() : '';
+  const manualEnd = endInp ? endInp.value.trim() : '';
+
+  // Update editSchedule
+  state.editSchedule[day] = { tour: isOff ? 'b' : normalizeTour(cleaned), prevNight };
+
+  // Update calendar data for this day
+  if (isOff) {
+    state.calData.calendar[day] = { type: 'off' };
   } else {
-    // Crosses midnight (e.g. 20:58-07:16)
-    // Day 1: startMin to 1440
-    // Night portion day 1: [1320,1440] overlap
-    nightMins += Math.max(0, 1440 - Math.max(startMin, 1320));
-    // Day 2: 0 to endMin
-    // Night portion day 2: [0,360] overlap
-    nightMins += Math.max(0, Math.min(endMin, 360));
+    const dow = getDow(day, state.calData.month, state.calData.year);
+    const variants = state.calData.pdfTours ? lookupTour(state.calData.pdfTours, normalizeTour(cleaned)) : null;
+    const v = getBestVariant(variants, dow);
+
+    // Use manual times if provided, otherwise use PDF times
+    const st = manualStart || (v ? v.startTime : '?');
+    const et = manualEnd || (v ? v.endTime : '?');
+    const hrs = (manualStart && manualEnd) ? calcHours(manualStart, manualEnd) : (v ? (v.hours || calcHours(v.startTime, v.endTime)) : null);
+
+    state.calData.calendar[day] = {
+      type: 'work',
+      tour: normalizeTour(cleaned),
+      startTime: st,
+      endTime: et,
+      overnight: false,
+      prevDayOvernight: prevNight,
+      hours: hrs,
+      notFound: !variants && !manualStart
+    };
   }
-  return parseFloat((nightMins / 60).toFixed(2));
+
+  // Recalculate overnight flags
+  recalcOvernight(state.calData.calendar, state.calData.daysInMonth);
+  saveState();
+  renderCalendar();
 }
 
-// Calculate night hours for a continuation day (prevDayOvernight, different tour)
-// Uses the real startTime and endTime from PDF — it's a regular same-day shift
-function calcNightHoursContinuation(startTime, endTime) {
-  if (!startTime || !endTime || startTime === "?" || endTime === "?") return 0;
-  var sh = startTime.split(":").map(Number);
-  var eh = endTime.split(":").map(Number);
-  var startMin = sh[0] * 60 + sh[1];
-  var endMin = eh[0] * 60 + eh[1];
-  var nightMins = 0;
-  // Same day shift (continuation always starts and ends same day, e.g. 05:33-10:52)
-  // Night = overlap with [0,360] (00:00-06:00) or [1320,1440] (22:00-24:00)
-  nightMins += Math.max(0, Math.min(endMin, 360) - Math.max(startMin, 0));
-  nightMins += Math.max(0, Math.min(endMin, 1440) - Math.max(startMin, 1320));
-  return parseFloat((nightMins / 60).toFixed(2));
+async function addExtraPdfs(fileList) {
+  if (!state.calData || !fileList.length) return;
+  const files = Array.from(fileList).filter(f => f.type === 'application/pdf');
+  if (!files.length) return;
+
+  const hint = document.getElementById('extra-pdf-hint');
+  hint.textContent = 'Apstrādā PDF...';
+
+  try {
+    const newTours = await parseTourPdfs(files);
+    // Merge with existing tours
+    if (!state.calData.pdfTours) state.calData.pdfTours = {};
+    Object.assign(state.calData.pdfTours, newTours);
+
+    const hint2 = document.getElementById('extra-pdf-hint');
+    hint2.textContent = `✓ Pievienotas ${Object.keys(newTours).length} tūres`;
+
+    // Re-resolve all notFound tours
+    const dim = state.calData.daysInMonth;
+    let fixed = 0;
+    for (let d = 1; d <= dim; d++) {
+      const info = state.calData.calendar[d];
+      if (info.type === 'work' && info.notFound) {
+        const dow = getDow(d, state.calData.month, state.calData.year);
+        const variants = lookupTour(state.calData.pdfTours, info.tour);
+        if (variants) {
+          const v = getBestVariant(variants, dow);
+          info.startTime = v.startTime;
+          info.endTime = v.endTime;
+          info.hours = v.hours || calcHours(v.startTime, v.endTime);
+          info.notFound = false;
+          fixed++;
+        }
+      }
+    }
+    recalcOvernight(state.calData.calendar, dim);
+    saveState();
+    renderCalendar();
+    if (fixed > 0) hint2.textContent += `, izlabotas ${fixed} tūres`;
+    setTimeout(() => { hint2.textContent = ''; }, 5000);
+  } catch (e) {
+    hint.textContent = 'Kļūda: ' + e.message;
+    setTimeout(() => { hint.textContent = ''; }, 5000);
+  }
 }
 
-function App() {
-  var _s = useState(STEPS.PASTE), step = _s[0], setStep = _s[1];
-  var _g = useState(""), geminiText = _g[0], setGeminiText = _g[1];
-  var _p = useState(null), parsed = _p[0], setParsed = _p[1];
-  var _e = useState({}), editSchedule = _e[0], setEditSchedule = _e[1];
-  var _mm = useState(""), metaMonth = _mm[0], setMetaMonth = _mm[1];
-  var _my = useState(new Date().getFullYear()), metaYear = _my[0], setMetaYear = _my[1];
-  var _pd = useState([]), pdfs = _pd[0], setPdfs = _pd[1];
-  var _ls = useState(""), loadStep = _ls[0], setLoadStep = _ls[1];
-  var _lp = useState(0), loadPct = _lp[0], setLoadPct = _lp[1];
-  var _acd = useState({}), allCalData = _acd[0], setAllCalData = _acd[1];
-  var _ak = useState(null), activeKey = _ak[0], setActiveKey = _ak[1];
-  var _er = useState(null), error = _er[0], setError = _er[1];
-  var _sd = useState(null), selectedDay = _sd[0], setSelectedDay = _sd[1];
-  var _ed = useState(null), editingDay = _ed[0], setEditingDay = _ed[1];
-  var _ev = useState(""), editVal = _ev[0], setEditVal = _ev[1];
-  var _db = useState(false), showDebug = _db[0], setShowDebug = _db[1];
-  var _dt = useState(""), editDayTour = _dt[0], setEditDayTour = _dt[1];
-  var _ets = useState(""), editTimeStart = _ets[0], setEditTimeStart = _ets[1];
-  var _ete = useState(""), editTimeEnd = _ete[0], setEditTimeEnd = _ete[1];
-  var _du = useState(false), editDayUpdating = _du[0], setEditDayUpdating = _du[1];
-  var _gk = useState(""), geminiKey = _gk[0], setGeminiKey = _gk[1];
-  var _ss = useState(false), showSettings = _ss[0], setShowSettings = _ss[1];
-  var _ap = useState(""), lastProvider = _ap[0], setLastProvider = _ap[1];
-  var _at = useState(""), apiTestResult = _at[0], setApiTestResult = _at[1];
-  var pdfInputRef = useRef();
-  var addPdfInputRef = useRef();
-  // Derived: current month data from allCalData
-  var calData = activeKey && allCalData[activeKey] ? allCalData[activeKey] : null;
-  var setCalData = function(newCd) {
-    if (!newCd) return;
-    var key = newCd.year + "-" + newCd.month;
-    setAllCalData(function(prev) { var n = Object.assign({}, prev); n[key] = newCd; return n; });
-    setActiveKey(key);
-  };
+// ═══════════════════════════════════════════════════════════════════════════
+// HERMES INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════
 
-  // All available month keys sorted
-  var monthKeys = Object.keys(allCalData).sort(function(a, b) {
-    var ap = a.split("-").map(Number); var bp = b.split("-").map(Number);
-    return ap[0] !== bp[0] ? ap[0] - bp[0] : ap[1] - bp[1];
+function copyHermesPrompt() {
+  const prompt = `Izlasiet šo darba grafika bildi un atgrieziet TIKAI tabulu šādā formātā:
+
+1: /70174
+2: b
+3: 7117
+...
+
+Kur:
+- "/" pirms numura = naktsmainis (darbs sākas iepriekšējā dienā)
+- "b" = brīvdiena
+- D/D10 = dežūra (16h/10h)
+- Tūres numuri ir 4-5 ciparu skaitļi (piem., 5001, 5117, 701/74)
+- NERAKSTI neko citu, tikai tabulu. Bez paskaidrojumiem.`;
+
+  // Try modern clipboard API first
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(prompt).then(() => {
+      showHermesCopied();
+    }).catch(() => {
+      fallbackCopy(prompt);
+    });
+  } else {
+    fallbackCopy(prompt);
+  }
+}
+
+function fallbackCopy(text) {
+  // Fallback for file:// or older browsers
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showHermesCopied();
+  } catch (e) {
+    // Last resort: show in a modal the user can manually copy
+    alert('Prompt (nokopē manuāli):\n\n' + text);
+  }
+  document.body.removeChild(ta);
+}
+
+function showHermesCopied() {
+  const el = document.getElementById('hermes-copied');
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Populate month selector
+  const monthSel = document.getElementById('meta-month');
+  monthSel.innerHTML = '<option value="">—</option>' +
+    MONTH_LV.slice(1).map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
+
+  // PDF dropzone
+  const dz = document.getElementById('pdf-dropzone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor = 'var(--accent)'; });
+  dz.addEventListener('dragleave', () => { dz.style.borderColor = ''; });
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.style.borderColor = '';
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+    addPdfs(files);
   });
 
-  // Navigation between months
-  var navigateMonth = function(dir) {
-    if (monthKeys.length === 0) return;
-    var idx = monthKeys.indexOf(activeKey);
-    var newIdx = idx + dir;
-    if (newIdx >= 0 && newIdx < monthKeys.length) {
-      setActiveKey(monthKeys[newIdx]);
-      setSelectedDay(null); setEditDayTour("");
+  // PDF input
+  const pdfInput = document.getElementById('pdf-input');
+  pdfInput.addEventListener('change', () => {
+    const files = Array.from(pdfInput.files).filter(f => f.type === 'application/pdf');
+    addPdfs(files);
+    pdfInput.value = '';
+  });
+
+  // Gemini text input
+  const geminiInput = document.getElementById('gemini-input');
+  geminiInput.addEventListener('input', () => {
+    state.geminiText = geminiInput.value;
+    if (!state.geminiText.trim()) {
+      state.parsed = null;
+      document.getElementById('btn-next').disabled = true;
+      document.getElementById('paste-success').style.display = 'none';
+      return;
     }
-  };
-  var canGoPrev = monthKeys.indexOf(activeKey) > 0;
-  var canGoNext = monthKeys.indexOf(activeKey) < monthKeys.length - 1;
-
-  // localStorage helpers
-  var storageGet = function(key) {
-    try { return localStorage.getItem(key); } catch (e) { return null; }
-  };
-  var storageSet = function(key, val) {
-    try { localStorage.setItem(key, val); } catch (e) { /* silent */ }
-  };
-
-  // Load from localStorage
-  useEffect(function() {
-    try {
-      var raw = storageGet("cal-state-v2");
-      if (raw) {
-        var s = JSON.parse(raw);
-        if (s.allCalData && Object.keys(s.allCalData).length > 0) {
-          setAllCalData(s.allCalData);
-          var keys = Object.keys(s.allCalData).sort();
-          setActiveKey(s.activeKey && s.allCalData[s.activeKey] ? s.activeKey : keys[keys.length - 1]);
-          setStep(STEPS.CALENDAR);
-        }
-        if (s.geminiKey) setGeminiKey(s.geminiKey);
-      }
-    } catch (e) { console.log("Storage load error:", e); }
-  }, []);
-
-  var saveState = function(allCd, aKey) {
-    storageSet("cal-state-v2", JSON.stringify({
-      allCalData: allCd, activeKey: aKey, geminiKey: geminiKey
-    }));
-  };
-
-  var saveGeminiKey = function(key) {
-    setGeminiKey(key);
-    var raw = storageGet("cal-state-v2");
-    var s = raw ? JSON.parse(raw) : {};
-    s.geminiKey = key;
-    storageSet("cal-state-v2", JSON.stringify(s));
-  };
-
-  // Parse gemini text
-  useEffect(function() {
-    if (!geminiText.trim()) { setParsed(null); return; }
-    var p = parseGeminiText(geminiText);
+    const p = parseGeminiText(state.geminiText);
     if (Object.keys(p.schedule).length > 0) {
-      setParsed(p);
-      setEditSchedule(JSON.parse(JSON.stringify(p.schedule)));
-      if (p.month) setMetaMonth(String(p.month));
-      if (p.year) setMetaYear(p.year);
+      state.parsed = p;
+      state.editSchedule = JSON.parse(JSON.stringify(p.schedule));
+      if (p.month) state.metaMonth = String(p.month);
+      if (p.year) state.metaYear = p.year;
+      document.getElementById('meta-month').value = state.metaMonth;
+      document.getElementById('meta-year').value = state.metaYear;
+      document.getElementById('btn-next').disabled = false;
+
+      const count = Object.keys(p.schedule).length;
+      let info = `✓ Atpazītas ${count} dienas`;
+      if (p.month) info += ` · ${MONTH_LV[p.month]}`;
+      if (p.year) info += ` ${p.year}`;
+
+      const el = document.getElementById('paste-success');
+      el.textContent = info;
+      el.style.display = 'block';
+      document.getElementById('paste-error').style.display = 'none';
     } else {
-      setParsed(null);
+      state.parsed = null;
+      document.getElementById('btn-next').disabled = true;
+      document.getElementById('paste-success').style.display = 'none';
     }
-  }, [geminiText]);
+  });
 
-  // Reconstruct editSchedule from calData when entering EDIT with empty schedule
-  useEffect(function() {
-    if (step === STEPS.EDIT && calData && Object.keys(editSchedule).length === 0) {
-      // Prefer stored editSchedule if available
-      if (calData.editSchedule && Object.keys(calData.editSchedule).length > 0) {
-        setEditSchedule(JSON.parse(JSON.stringify(calData.editSchedule)));
-      } else {
-        var reconstructed = {};
-        for (var d = 1; d <= calData.daysInMonth; d++) {
-          var info = calData.calendar[d];
-          if (!info || info.type === "off") {
-            reconstructed[d] = { tour: "b", prevNight: false };
-          } else {
-            reconstructed[d] = { tour: info.tour, prevNight: info.prevDayOvernight || false };
-          }
-        }
-        setEditSchedule(reconstructed);
-      }
-      if (calData.month) setMetaMonth(String(calData.month));
-      if (calData.year) setMetaYear(calData.year);
-    }
-  }, [step, calData]);
+  // Month/year change handlers
+  document.getElementById('meta-month').addEventListener('change', function() {
+    state.metaMonth = this.value;
+    if (state.step === STEPS.EDIT) renderEditRows();
+  });
+  document.getElementById('meta-year').addEventListener('input', function() {
+    state.metaYear = parseInt(this.value) || new Date().getFullYear();
+    if (state.step === STEPS.EDIT) renderEditRows();
+  });
 
-  var onPdfDrop = useCallback(function(e) {
-    e.preventDefault();
-    var files = Array.from(e.dataTransfer ? e.dataTransfer.files : e.target.files).filter(function(f) { return f.type === "application/pdf"; });
-    setPdfs(function(prev) {
-      var names = new Set(prev.map(function(p) { return p.name; }));
-      return prev.concat(files.filter(function(f) { return !names.has(f.name); }));
-    });
-  }, []);
-
-  var removePdf = function(i) { setPdfs(function(prev) { return prev.filter(function(_, idx) { return idx !== i; }); }); };
-
-  var daysInMonth = function() {
-    var m = parseInt(metaMonth);
-    if (!m || !metaYear) return 31;
-    return new Date(metaYear, m, 0).getDate();
-  };
-
-  var getDow = function(d) {
-    var m = parseInt(metaMonth);
-    if (!m || !metaYear) return 1;
-    var w = new Date(metaYear, m - 1, d).getDay();
-    return w === 0 ? 7 : w;
-  };
-
-  var saveEdit = function(day) {
-    var raw = editVal.trim();
-    if (!raw) return;
-    var prevNight = raw.startsWith("/");
-    var cleaned = raw.replace(/^\/\s*/, "").trim();
-    var isOff = cleaned.toLowerCase() === "b" || cleaned === "";
-    var tour = isOff ? "b" : normalizeTour(cleaned);
-    setEditSchedule(function(prev) { return Object.assign({}, prev, { [day]: { tour: tour, prevNight: prevNight } }); });
-    setEditingDay(null);
-  };
-
-  var buildCalendar = async function() {
-    if (!metaMonth || !metaYear) { setError("Norādi mēnesi un gadu!"); return; }
-    if (pdfs.length === 0 && !hasPreviousPdfData) { setError("Pievienojiet vismaz vienu tūru PDF!"); return; }
-    setStep(STEPS.LOADING); setError(null); setLoadPct(0);
-    try {
-      var dim = daysInMonth();
-      var needed = new Set();
-      for (var d = 1; d <= dim; d++) {
-        var e = editSchedule[d];
-        if (e && e.tour && e.tour !== "b" && e.tour !== "D") {
-          needed.add(e.tour);
-          var n = normalizeTour(e.tour);
-          if (n !== e.tour) needed.add(n);
-        }
-      }
-
-      var toursJson;
-
-      if (pdfs.length > 0) {
-        // New PDFs uploaded — call AI to extract tours
-        setLoadStep("Meklē " + needed.size + " tūres PDF failos..."); setLoadPct(20);
-        console.log("[CAL] Converting " + pdfs.length + " PDFs to base64...");
-        var pdfB64s = [];
-        for (var fi = 0; fi < pdfs.length; fi++) {
-          var b64 = await toBase64(pdfs[fi]);
-          pdfB64s.push(b64);
-        }
-        console.log("[CAL] PDF base64 ready, sizes:", pdfB64s.map(function(x) { return Math.round(x.length/1024) + "KB"; }));
-        var neededList = Array.from(needed).sort().join(", ");
-        var promptText = "These are Latvian train conductor work tour PDFs (tūres).\n\nEach tour has:\n- \"Tūres Nr.\" = tour number like \"701/57\", \"702/56\", \"703/59\", \"7014\", \"7117\"\n- \"Darba sākums\" = work start time\n- \"Darba beigas\" = work end time\n- \"Stundas\" = hours worked\n- Day pattern like \"1-7d\"=all days, \"1-5d\"=Mon-Fri, \"6d\"=Sat, \"7d\"=Sun, \"6,7d\"=Sat+Sun etc.\n  (1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun)\n\nIMPORTANT: I only need these specific tours: " + neededList + "\n\nSearch through ALL uploaded PDF documents carefully for each of these tour numbers.\nA tour number like \"702/56\" might appear as \"702/56\" in the PDF header column \"Tūres Nr.\"\nA tour number like \"7117\" is a 4-digit KK tour.\nSome tours have multiple day-pattern variants — include each variant.\n\nFor each needed tour, extract: dayPattern, startTime (from \"Darba sākums\"), endTime (from \"Darba beigas\"), hours (from \"Stundas\").\n\nReturn ONLY valid JSON, no other text:\n{\"tours\":{\"701/47\":[{\"dayPattern\":\"1-7d\",\"startTime\":\"22:07\",\"endTime\":\"08:26\",\"hours\":10.32}],\"7117\":[{\"dayPattern\":\"1-5d\",\"startTime\":\"13:48\",\"endTime\":\"23:06\",\"hours\":9.30}]}}";
-        setLoadPct(50);
-        setLoadStep("Sūta uz AI (" + (geminiKey ? "Gemini/Claude" : "Claude") + ")...");
-        console.log("[CAL] Calling AI, geminiKey:", geminiKey ? "YES" : "NO");
-        var aiResult = await callAI(pdfB64s, promptText, geminiKey, 12000);
-        console.log("[CAL] AI responded, provider:", aiResult.provider, "length:", aiResult.text.length);
-        var raw = aiResult.text;
-        setLastProvider(aiResult.provider);
-        setLoadPct(80);
-        try {
-          var cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-          var jsonStart = cleaned.indexOf("{");
-          var jsonEnd = cleaned.lastIndexOf("}");
-          if (jsonStart === -1 || jsonEnd === -1) throw new Error("Nav JSON");
-          toursJson = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
-        } catch (parseErr) {
-          throw new Error("Neizdevās nolasīt PDF: " + parseErr.message);
-        }
-        // Merge with previous tours
-        toursJson.tours = Object.assign({}, allPreviousTours, toursJson.tours);
-      } else {
-        // No new PDFs — reuse all previous PDF tour data
-        console.log("[CAL] No new PDFs, reusing", Object.keys(allPreviousTours).length, "tours from previous months");
-        setLoadStep("Izmanto iepriekš nolasītās tūres..."); setLoadPct(80);
-        toursJson = { tours: allPreviousTours };
-      }
-      setLoadStep("Veido kalendāru..."); setLoadPct(90);
-      var calendar = {};
-      for (var dd = 1; dd <= dim; dd++) {
-        var entry = editSchedule[dd];
-        if (!entry || !entry.tour || entry.tour === "b") { calendar[dd] = { type: "off" }; continue; }
-        if (entry.tour === "D") {
-          var dh = entry.dutyHours || 16;
-          var dEnd = 5 + dh; // starts at 05:00
-          var dEndH = Math.floor(dEnd); var dEndM = Math.round((dEnd - dEndH) * 60);
-          calendar[dd] = {
-            type: "work", tour: "D", isDuty: true,
-            startTime: "05:00", endTime: (dEndH < 10 ? "0" : "") + dEndH + ":" + (dEndM < 10 ? "0" : "") + dEndM,
-            overnight: false, prevDayOvernight: false,
-            hours: dh, notFound: false, dutyHours: dh,
-          };
-          continue;
-        }
-        var dow = getDow(dd);
-        var variants = lookupTour(toursJson.tours, entry.tour);
-        var v = getBestVariant(variants, dow);
-        var prevN = entry.prevNight === true;
-        calendar[dd] = {
-          type: "work", tour: entry.tour,
-          startTime: v ? v.startTime : "?", endTime: v ? v.endTime : "?",
-          overnight: false, prevDayOvernight: prevN,
-          hours: v ? (v.hours || calcHours(v.startTime, v.endTime)) : null,
-          notFound: !variants,
-        };
-      }
-      // Post-process: detect true overnight pairs by matching tour numbers
-      // If day D+1 has prevNight=true AND same tour as day D → both get overnight flag
-      for (var od = 1; od < dim; od++) {
-        var dayA = calendar[od];
-        var dayB = calendar[od + 1];
-        if (dayA && dayB && dayA.type === "work" && dayB.type === "work"
-            && dayB.prevDayOvernight && dayA.tour === dayB.tour) {
-          calendar[od].overnight = true;
-          calendar[od + 1].hours = null; // hours counted on start day only
-        }
-      }
-      setLoadPct(100);
-      var newCalData = { month: parseInt(metaMonth), year: metaYear, daysInMonth: dim, calendar: calendar, pdfTours: toursJson.tours, editSchedule: editSchedule };
-      var newKey = metaYear + "-" + parseInt(metaMonth);
-      var newAll = Object.assign({}, allCalData); newAll[newKey] = newCalData;
-      setAllCalData(newAll);
-      setActiveKey(newKey);
-      setStep(STEPS.CALENDAR);
-      saveState(newAll, newKey);
-    } catch (err) {
-      console.error("[CAL] Build error:", err);
-      setError(err.message);
-      setStep(STEPS.EDIT);
-    } finally {
-      setLoadStep(""); setLoadPct(0);
-    }
-  };
-
-  var reset = function() {
-    setStep(STEPS.PASTE); setGeminiText(""); setParsed(null); setEditSchedule({});
-    setAllCalData({}); setActiveKey(null); setError(null); setSelectedDay(null); setPdfs([]);
-    setMetaMonth(""); setMetaYear(new Date().getFullYear());
-    setEditDayTour("");
-    try { localStorage.removeItem("cal-state-v2"); } catch(e) {}
-  };
-
-  var goToNewMonth = function() {
-    var keepYear = calData ? calData.year : new Date().getFullYear();
-    setGeminiText(""); setParsed(null); setEditSchedule({}); setPdfs([]); setError(null);
-    setMetaMonth(""); setMetaYear(keepYear);
-    setSelectedDay(null); setEditDayTour("");
+  // Try loading saved state
+  if (!loadState()) {
     setStep(STEPS.PASTE);
-  };
-
-  // Recalculate overnight flags for entire calendar based on matching tour numbers
-  var recalcOvernight = function(cal, dim) {
-    for (var d = 1; d <= dim; d++) {
-      if (cal[d] && cal[d].type === "work") cal[d].overnight = false;
-    }
-    for (var d2 = 1; d2 < dim; d2++) {
-      var a = cal[d2];
-      var b = cal[d2 + 1];
-      if (a && b && a.type === "work" && b.type === "work"
-          && b.prevDayOvernight && a.tour === b.tour) {
-        cal[d2].overnight = true;
-        cal[d2 + 1].hours = null;
-      }
-    }
-  };
-
-  // Update single day tour from calendar detail card
-  var updateDayTour = function(day, newRaw) {
-    if (!calData || !newRaw.trim()) return;
-    var prevNight = newRaw.trim().startsWith("/");
-    var cleaned = newRaw.trim().replace(/^\/\s*/, "").trim();
-    var isOff = cleaned.toLowerCase() === "b" || cleaned === "";
-    var isDuty = /^d$/i.test(cleaned) || /^d\s*\d/i.test(cleaned);
-    var dutyHours = 16;
-    if (isDuty) {
-      var dMatch = cleaned.match(/d\s*(\d+\.?\d*)/i);
-      if (dMatch) dutyHours = parseFloat(dMatch[1]);
-    }
-    var tourId = isOff ? "b" : isDuty ? "D" : normalizeTour(cleaned);
-    // Check if this day was previously a duty day
-    var prevDay = calData.calendar[day];
-    var wasDuty = prevDay && prevDay.isDuty;
-    var newEdit = Object.assign({}, editSchedule, { [day]: { tour: tourId, prevNight: prevNight, dutyHours: isDuty ? dutyHours : undefined } });
-    setEditSchedule(newEdit);
-    var newCal = Object.assign({}, calData.calendar);
-    if (isOff) {
-      newCal[day] = { type: "off" };
-    } else if (isDuty) {
-      var dEnd = 5 + dutyHours;
-      var dEndH = Math.floor(dEnd); var dEndM = Math.round((dEnd - dEndH) * 60);
-      newCal[day] = {
-        type: "work", tour: "D", isDuty: true,
-        startTime: "05:00", endTime: (dEndH < 10 ? "0" : "") + dEndH + ":" + (dEndM < 10 ? "0" : "") + dEndM,
-        overnight: false, prevDayOvernight: false,
-        hours: dutyHours, notFound: false, dutyHours: dutyHours,
-      };
-    } else {
-      var dow = getDow(day);
-      var variants = lookupTour(calData.pdfTours, tourId);
-      var v = getBestVariant(variants, dow);
-      var tourStart = v ? v.startTime : "?";
-      var tourEnd = v ? v.endTime : "?";
-      var tourHrs = v ? (v.hours || calcHours(v.startTime, v.endTime)) : null;
-      if (!v) {
-        var existingInfo = null;
-        var calKeys = Object.keys(calData.calendar);
-        for (var ci = 0; ci < calKeys.length; ci++) {
-          var cinfo = calData.calendar[calKeys[ci]];
-          if (cinfo.type === "work" && cinfo.tour === tourId && !cinfo.notFound && cinfo.startTime !== "?") {
-            existingInfo = cinfo; break;
-          }
-        }
-        if (existingInfo) {
-          tourStart = existingInfo.startTime;
-          tourEnd = existingInfo.endTime;
-          tourHrs = existingInfo.hours;
-        }
-      }
-      // Calculate duty hours if this was a D day and tour has known start time
-      var remainingDuty = null;
-      if (wasDuty && tourStart !== "?") {
-        var tsh = tourStart.split(":").map(Number);
-        var tourStartMin = tsh[0] * 60 + tsh[1];
-        var dutyStartMin = 5 * 60; // 05:00
-        if (tourStartMin > dutyStartMin) {
-          remainingDuty = parseFloat(((tourStartMin - dutyStartMin) / 60).toFixed(1));
-        }
-      }
-      newCal[day] = {
-        type: "work", tour: tourId,
-        startTime: tourStart, endTime: tourEnd,
-        overnight: false, prevDayOvernight: prevNight,
-        hours: tourHrs, notFound: tourStart === "?",
-        dutyHours: remainingDuty,
-      };
-    }
-    // Recalculate overnight flags for all days
-    recalcOvernight(newCal, calData.daysInMonth);
-    var newCalData = Object.assign({}, calData, { calendar: newCal, editSchedule: newEdit });
-    setCalData(newCalData);
-    setEditDayTour("");
-    var updatedAll = Object.assign({}, allCalData); updatedAll[activeKey] = newCalData;
-    saveState(updatedAll, activeKey);
-  };
-
-  // Update start/end times for a specific day
-  var updateDayTimes = function(day, newStart, newEnd) {
-    if (!calData) return;
-    var info = calData.calendar[day];
-    if (!info || info.type !== "work") return;
-    var s = autoFormatTime(newStart.trim()) || info.startTime;
-    var e = autoFormatTime(newEnd.trim()) || info.endTime;
-    if (!/^\d{1,2}:\d{2}$/.test(s) || !/^\d{1,2}:\d{2}$/.test(e)) return;
-    var newCal = Object.assign({}, calData.calendar);
-    var hrs = calcHours(s, e);
-    var updated = Object.assign({}, info, { startTime: s, endTime: e, hours: hrs, notFound: false });
-    // If this is a duty day and start time moved from 05:00, calculate remaining duty
-    if (info.isDuty) {
-      var sh = s.split(":").map(Number);
-      var startMin = sh[0] * 60 + sh[1];
-      var dutyStartMin = 5 * 60; // 05:00
-      if (startMin > dutyStartMin) {
-        // Work starts later — duty from 05:00 to work start
-        updated.dutyBeforeH = parseFloat(((startMin - dutyStartMin) / 60).toFixed(1));
-        updated.dutyBeforeEnd = s;
-      }
-    }
-    newCal[day] = updated;
-    recalcOvernight(newCal, calData.daysInMonth);
-    var newCalData = Object.assign({}, calData, { calendar: newCal });
-    setCalData(newCalData);
-    setEditTimeStart(""); setEditTimeEnd("");
-    var updatedAll2 = Object.assign({}, allCalData); updatedAll2[activeKey] = newCalData;
-    saveState(updatedAll2, activeKey);
-  };
-  var processAdditionalPdfs = async function(newFiles) {
-    if (!calData || newFiles.length === 0) return;
-    setEditDayUpdating(true); setError(null);
-    try {
-      var needed = new Set();
-      var calKeys = Object.keys(calData.calendar);
-      for (var ci = 0; ci < calKeys.length; ci++) {
-        var info = calData.calendar[calKeys[ci]];
-        if (info.type === "work" && (info.notFound || info.startTime === "?")) {
-          needed.add(info.tour);
-          var n = normalizeTour(info.tour);
-          if (n !== info.tour) needed.add(n);
-        }
-      }
-      if (needed.size === 0) { setEditDayUpdating(false); return; }
-      var pdfB64s = [];
-      for (var fi = 0; fi < newFiles.length; fi++) {
-        var b64 = await toBase64(newFiles[fi]);
-        pdfB64s.push(b64);
-      }
-      var neededList = Array.from(needed).sort().join(", ");
-      var promptText = "These are Latvian train conductor tour PDFs. Extract ONLY these tours: " + neededList + "\nFor each: dayPattern, startTime (Darba sākums), endTime (Darba beigas), hours (Stundas).\nReturn ONLY JSON: {\"tours\":{\"701/47\":[{\"dayPattern\":\"1-7d\",\"startTime\":\"22:07\",\"endTime\":\"08:26\",\"hours\":10.32}]}}";
-      var aiResult = await callAI(pdfB64s, promptText, geminiKey, 12000);
-      var raw = aiResult.text;
-      setLastProvider(aiResult.provider);
-      var cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-      var jsonStart = cleaned.indexOf("{"); var jsonEnd = cleaned.lastIndexOf("}");
-      var newTours = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
-      var mergedTours = Object.assign({}, calData.pdfTours, newTours.tours);
-      var newCal = Object.assign({}, calData.calendar);
-      var nKeys = Object.keys(newCal);
-      for (var ni = 0; ni < nKeys.length; ni++) {
-        var ninfo = newCal[nKeys[ni]];
-        if (ninfo.type === "work" && (ninfo.notFound || ninfo.startTime === "?")) {
-          var dow = getDow(parseInt(nKeys[ni]));
-          var variants = lookupTour(mergedTours, ninfo.tour);
-          var v = getBestVariant(variants, dow);
-          if (v) {
-            newCal[nKeys[ni]] = Object.assign({}, ninfo, { startTime: v.startTime, endTime: v.endTime, overnight: false, hours: v.hours || calcHours(v.startTime, v.endTime), notFound: false });
-          }
-        }
-      }
-      recalcOvernight(newCal, calData.daysInMonth);
-      var newCalData = Object.assign({}, calData, { calendar: newCal, pdfTours: mergedTours });
-      setCalData(newCalData);
-      var updatedAll = Object.assign({}, allCalData); updatedAll[activeKey] = newCalData;
-      saveState(updatedAll, activeKey);
-    } catch (err) { setError("PDF kļūda: " + err.message); }
-    setEditDayUpdating(false);
-  };
-
-  // Stats
-  var totalWork = calData ? Object.values(calData.calendar).filter(function(d) { return d.type === "work"; }).length : 0;
-  var totalOff = calData ? Object.values(calData.calendar).filter(function(d) { return d.type === "off"; }).length : 0;
-  var totalHrs = calData ? Object.values(calData.calendar).filter(function(d) { return d.type === "work" && d.hours; }).reduce(function(s, d) { return s + parseFloat(d.hours); }, 0).toFixed(1) : 0;
-  var notFound = calData ? Object.values(calData.calendar).filter(function(d) { return d.notFound; }).length : 0;
-  var firstDow = calData ? (function() { var w = new Date(calData.year, calData.month - 1, 1).getDay(); return w === 0 ? 7 : w; })() : 1;
-  var selDay = selectedDay && calData ? calData.calendar[selectedDay] : null;
-
-  // Check if any previous month has PDF tour data we can reuse
-  var hasPreviousPdfData = false;
-  var allPreviousTours = {};
-  var mkKeys = Object.keys(allCalData);
-  for (var mki = 0; mki < mkKeys.length; mki++) {
-    var mcd = allCalData[mkKeys[mki]];
-    if (mcd && mcd.pdfTours && Object.keys(mcd.pdfTours).length > 0) {
-      hasPreviousPdfData = true;
-      Object.assign(allPreviousTours, mcd.pdfTours);
-    }
   }
+});
 
-  var _sb = useState(false), showBreakdown = _sb[0], setShowBreakdown = _sb[1];
-
-  // Calculate breakdown when needed
-  var breakdown = null;
-  if (showBreakdown && calData) {
-    var nightH = 0;
-    var holidayH = 0;
-    var holidayDays = [];
-    var dutyH = 0;
-    var dutyDays = [];
-    for (var bd = 1; bd <= calData.daysInMonth; bd++) {
-      var binfo = calData.calendar[bd];
-      if (!binfo || binfo.type !== "work") continue;
-      // Duty hours — full D days + partial duty when D was replaced by tour
-      if (binfo.isDuty && binfo.hours) {
-        if (binfo.dutyBeforeH) {
-          // D day with modified times: duty is the before-work portion
-          dutyH += binfo.dutyBeforeH;
-        } else {
-          // Full duty day
-          dutyH += parseFloat(binfo.hours);
-        }
-        dutyDays.push(bd);
-      } else if (binfo.dutyBeforeH) {
-        // Tour that replaced a D day
-        dutyH += binfo.dutyBeforeH;
-        dutyDays.push(bd);
-      } else if (binfo.dutyHours && !binfo.isDuty) {
-        // Tour with calculated duty remainder
-        dutyH += parseFloat(binfo.dutyHours);
-        dutyDays.push(bd);
-      }
-      // Holiday hours: all hours on a holiday
-      if (isLvHoliday(calData.year, calData.month, bd) && binfo.hours) {
-        holidayH += parseFloat(binfo.hours);
-        holidayDays.push(bd);
-      }
-      // Night hours
-      if (binfo.startTime && binfo.startTime !== "?" && binfo.endTime && binfo.endTime !== "?") {
-        if (binfo.prevDayOvernight) {
-          // Continuation day — only count if NOT true overnight (different tour)
-          var prevInfo = bd > 1 ? calData.calendar[bd - 1] : null;
-          if (!prevInfo || !prevInfo.overnight) {
-            // Different tour continuation — count night portion of this day
-            nightH += calcNightHoursContinuation(binfo.startTime, binfo.endTime);
-          }
-          // If true overnight (prevInfo.overnight=true) — night already counted on start day
-        } else {
-          // Regular or overnight start day
-          nightH += calcNightHours(binfo.startTime, binfo.endTime, binfo.overnight);
-        }
-      }
-    }
-    breakdown = { nightH: nightH.toFixed(1), holidayH: holidayH.toFixed(1), holidayDays: holidayDays, dutyH: dutyH.toFixed(1), dutyDays: dutyDays };
-  }
-
-  return (
-    <div style={{ minHeight: "100vh", background: "#0c0e14", color: "#e8eaf0", fontFamily: "'DM Mono','Courier New',monospace", overflowX: "hidden", width: "100%" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#161820}::-webkit-scrollbar-thumb{background:#f59e0b;border-radius:3px}
-        .btn{background:#f59e0b;color:#0c0e14;border:none;padding:12px 28px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;border-radius:6px;transition:all .2s}
-        .btn:hover{background:#fbbf24;transform:translateY(-1px);box-shadow:0 4px 20px rgba(245,158,11,.4)}
-        .btn:disabled{background:#2a2d3a;color:#4a4d5a;cursor:not-allowed;transform:none;box-shadow:none}
-        .btn-sm{background:#1c2035;color:#93c5fd;border:1px solid #2a3a5c;padding:6px 14px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .2s}
-        .btn-sm:hover{background:#2a3a5c;color:#bfdbfe}
-        .btn-ghost{background:transparent;color:#9ca3af;border:1px solid #2a2d3a;padding:8px 16px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;border-radius:4px;transition:all .2s}
-        .btn-ghost:hover{border-color:#f59e0b;color:#f59e0b}
-        .btn-red{background:transparent;color:#f87171;border:1px solid #3a2020;padding:6px 14px;font-size:11px;cursor:pointer;border-radius:4px;transition:all .2s}
-        .btn-red:hover{background:#2a1515;border-color:#f87171}
-        textarea{background:#0f1117;border:1px solid #2a2d3a;color:#e8eaf0;padding:14px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;resize:vertical;width:100%;outline:none;transition:border .2s;line-height:1.6}
-        textarea:focus{border-color:#f59e0b}
-        input[type=text],input[type=number]{background:#0f1117;border:1px solid #2a2d3a;color:#e8eaf0;padding:8px 12px;border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border .2s}
-        input[type=text]:focus,input[type=number]:focus{border-color:#f59e0b}
-        select{background:#0f1117;border:1px solid #2a2d3a;color:#e8eaf0;padding:8px 12px;border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;outline:none;cursor:pointer}
-        .dz{border:2px dashed #2a2d3a;border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:#161820}
-        .dz:hover{border-color:#f59e0b;background:#1c1f2b}
-        .dc{border-radius:8px;padding:9px 7px;min-height:86px;cursor:pointer;transition:all .15s;position:relative;border:1px solid transparent;user-select:none}
-        .dc:hover{transform:scale(1.05);z-index:10}
-        .dw{background:#131a2a;border-color:#1e2d4a}.dw:hover{border-color:#3b82f6;box-shadow:0 0 14px rgba(59,130,246,.3)}
-        .dn{background:#1f1535;border-color:#3b2a5c}.dn:hover{border-color:#8b5cf6;box-shadow:0 0 14px rgba(139,92,246,.3)}
-        .dp{background:#1f2a20;border-color:#2a5c35}.dp:hover{border-color:#22c55e;box-shadow:0 0 14px rgba(34,197,94,.3)}
-        .do{background:#2a1215;border-color:#4a1a1e}.do:hover{border-color:#f87171;box-shadow:0 0 10px rgba(248,113,113,.15)}
-        .dnf{background:#2a1a10;border-color:#5c3a1a}
-        .dc2{background:#1e3045;border-color:#2e5a7c}.dc2:hover{border-color:#38bdf8;box-shadow:0 0 14px rgba(56,189,248,.3)}
-        .sel.dw{border-color:#3b82f6!important;box-shadow:0 0 20px rgba(59,130,246,.5)!important}
-        .sel.dn{border-color:#8b5cf6!important;box-shadow:0 0 20px rgba(139,92,246,.5)!important}
-        .sel.dp{border-color:#22c55e!important;box-shadow:0 0 20px rgba(34,197,94,.5)!important}
-        .sel.do{border-color:#f87171!important;box-shadow:0 0 20px rgba(248,113,113,.3)!important}
-        .sel.dc2{border-color:#38bdf8!important;box-shadow:0 0 20px rgba(56,189,248,.5)!important}
-        .pb{height:3px;background:#1c1f2b;border-radius:2px;overflow:hidden}
-        .pf{height:100%;background:linear-gradient(90deg,#f59e0b,#ef4444);border-radius:2px;transition:width .4s}
-        .sc{background:#161820;border:1px solid #2a2d3a;border-radius:10px;padding:14px 18px}
-        .tg{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;letter-spacing:1px}
-        .erow{display:grid;grid-template-columns:28px 1fr 80px auto;gap:6px;align-items:center;padding:5px 8px;border-radius:6px;transition:background .15s}
-        .erow:hover{background:#161820}
-        .erow.wknd{background:#15130a}
-        .erow.wknd:hover{background:#1c180a}
-        @keyframes pulse{0%,80%,100%{opacity:.2;transform:scale(.9)}40%{opacity:1;transform:scale(1)}}
-        .tag-b{background:#111318;color:#4a4d5a;border:1px solid #1a1d26}
-        .tag-w{background:#1a2035;color:#93c5fd;border:1px solid #2a3a5c}
-        .tag-n{background:#1f1535;color:#a78bfa;border:1px solid #3b2a5c}
-        .tag-p{background:#1f2a20;color:#4ade80;border:1px solid #2a5c35}
-        .edit-inp{background:#0f1117;border:1px solid #f59e0b;color:#e8eaf0;padding:4px 8px;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;outline:none;width:100%}
-        html,body{overflow-x:hidden;width:100%;max-width:100vw}
-        @media(max-width:700px){
-          .dc{padding:4px 3px;min-height:68px}
-          .dc:hover{transform:none}
-          .sc{padding:8px 10px;min-width:auto!important}
-          .btn-ghost{padding:6px 10px;font-size:10px}
-          .mob-edit-grid{grid-template-columns:1fr!important}
-          .mob-stats{gap:6px!important}
-          .mob-stats .sc{flex:1;min-width:0!important}
-          .mob-legend{font-size:8px!important;gap:6px!important}
-          .mob-title{font-size:36px!important;letter-spacing:4px!important}
-          .mob-year{font-size:18px!important}
-          .mob-cell-tour{font-size:8px!important}
-          .mob-cell-time{font-size:10px!important}
-          .mob-cell-arrow{font-size:9px!important}
-          .mob-cell-hrs{font-size:8px!important}
-          .mob-cell-day{font-size:15px!important}
-          .mob-cell-icon{font-size:8px!important}
-          .mob-cell-label{font-size:9px!important}
-        }
-        @media(max-width:700px){
-          .dc{min-height:70px;padding:6px 4px;border-radius:6px}
-          .dc:hover{transform:none}
-          .sc{padding:10px 12px;min-width:auto!important}
-          .btn-ghost{padding:6px 10px;font-size:10px}
-          .mob-edit-grid{grid-template-columns:1fr!important}
-        }
-      `}</style>
-
-      {/* Header */}
-      <div style={{ borderBottom: "1px solid #1c1f2b", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
-            {[1, .65, .35].map(function(o, i) { return <div key={i} style={{ width: 22, height: 3, background: "#f59e0b", borderRadius: 2, opacity: o }} />; })}
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 3, color: "#f59e0b" }}>DARBA KALENDĀRS</div>
-            <div style={{ fontSize: 8, color: "#4a4d5a", letterSpacing: 2 }}>VILCIENA KONDUKTORS</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          {step === STEPS.CALENDAR && <button className="btn-ghost" onClick={function() { setEditSchedule({}); setStep(STEPS.EDIT); }}>✏ GRAFIKS</button>}
-          {Object.keys(allCalData).length > 0 && step !== STEPS.CALENDAR && <button className="btn-ghost" onClick={function() { setStep(STEPS.CALENDAR); setSelectedDay(null); }}>← KALENDĀRS</button>}
-          {step === STEPS.CALENDAR && <button className="btn-ghost" onClick={goToNewMonth}>+ JAUNS MĒNESIS</button>}
-          <button className="btn-ghost" onClick={function() { setShowSettings(!showSettings); }} style={{ fontSize: 14, padding: "6px 10px" }}>⚙</button>
-        </div>
-      </div>
-
-      {/* Settings panel */}
-      {showSettings && (
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "12px 10px 0" }}>
-          <div style={{ background: "#161820", border: "1px solid #2a2d3a", borderRadius: 10, padding: "16px 20px", marginBottom: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: "#f59e0b", letterSpacing: 2 }}>IESTATĪJUMI</div>
-              <button className="btn-ghost" onClick={function() { setShowSettings(false); }} style={{ padding: "4px 10px", fontSize: 12 }}>✕</button>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 6 }}>GEMINI API ATSLĒGA</div>
-              <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 8, lineHeight: 1.6 }}>
-                Vajadzīga PDF nolasīšanai ja Claude API nav pieejams. Iegūsti bezmaksas: <span style={{ color: "#93c5fd" }}>aistudio.google.com → Get API key</span>
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="password"
-                  value={geminiKey}
-                  onChange={function(e) { setGeminiKey(e.target.value); }}
-                  placeholder="AIzaSy..."
-                  style={{ flex: 1, background: "#0f1117", border: "1px solid #2a2d3a", color: "#e8eaf0", padding: "8px 12px", borderRadius: 6, fontFamily: "'DM Mono',monospace", fontSize: 12, outline: "none" }}
-                />
-                <button className="btn" onClick={function() { saveGeminiKey(geminiKey); setShowSettings(false); }} style={{ padding: "8px 16px", fontSize: 12 }}>
-                  SAGLABĀT
-                </button>
-              </div>
-              {geminiKey && <div style={{ marginTop: 6, fontSize: 10, color: "#4ade80" }}>✓ Atslēga saglabāta</div>}
-              {geminiKey && (
-                <div style={{ marginTop: 8 }}>
-                  <button className="btn-sm" onClick={function() {
-                    setApiTestResult("⏳ Testē...");
-                    (async function() {
-                      try {
-                        var res = await fetchWithTimeout(GEMINI_API_URL + "?key=" + geminiKey, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ contents: [{ parts: [{ text: "Respond with just: OK" }] }] }),
-                        }, 15000);
-                        var data = await res.json();
-                        if (data.error) {
-                          setApiTestResult("❌ " + (data.error.message || JSON.stringify(data.error)));
-                        } else if (data.candidates && data.candidates[0]) {
-                          setApiTestResult("✅ Gemini strādā! Atbilde: " + data.candidates[0].content.parts[0].text.slice(0, 50));
-                        } else {
-                          setApiTestResult("❌ Neparedzēta atbilde: " + JSON.stringify(data).slice(0, 100));
-                        }
-                      } catch (err) {
-                        setApiTestResult("❌ " + err.message);
-                      }
-                    })();
-                  }} style={{ fontSize: 10 }}>🔧 TESTĒT API</button>
-                  {apiTestResult && <div style={{ marginTop: 6, fontSize: 10, color: apiTestResult.startsWith("✅") ? "#4ade80" : apiTestResult.startsWith("⏳") ? "#f59e0b" : "#f87171", lineHeight: 1.5 }}>{apiTestResult}</div>}
-                </div>
-              )}
-            </div>
-            <div style={{ borderTop: "1px solid #1c1f2b", paddingTop: 10, fontSize: 10, color: "#4a4d5a", lineHeight: 1.7 }}>
-              <div style={{ marginBottom: 4 }}>PDF nolasīšanas prioritāte:</div>
-              <div>1. <span style={{ color: "#93c5fd" }}>Claude API</span> — automātiski čata side panelī</div>
-              <div>2. <span style={{ color: "#4ade80" }}>Gemini API</span> — ja Claude nav pieejams (publicētā versija)</div>
-              {lastProvider && <div style={{ marginTop: 6, color: "#f59e0b" }}>Pēdējais izmantotais: <span style={{ color: lastProvider === "Claude" ? "#93c5fd" : "#4ade80" }}>{lastProvider}</span></div>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "16px 10px" }}>
-
-        {/* STEP 1: PASTE */}
-        {step === STEPS.PASTE && (
-          <div>
-            <div style={{ textAlign: "center", marginBottom: 32 }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 40, letterSpacing: 5, lineHeight: 1 }}>
-                IELĪMĒ GRAFIKU<br /><span style={{ color: "#f59e0b" }}>NO GEMINI</span>
-              </div>
-              <div style={{ fontSize: 11, color: "#4a4d5a", marginTop: 10, letterSpacing: 1 }}>PAPRASI GEMINI PĀRVĒRST BILDI TEKSTĀ, TIEM IELĪMĒ ŠEIT</div>
-            </div>
-
-            <div style={{ background: "#161820", border: "1px solid #2a2d3a", borderRadius: 10, padding: "14px 18px", marginBottom: 20 }}>
-              <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 8 }}>GEMINI PROMPT (nokopē un izmanto)</div>
-              <div style={{ background: "#0f1117", borderRadius: 6, padding: "10px 14px", fontSize: 11, color: "#9ca3af", lineHeight: 1.7, fontFamily: "monospace" }}>
-                Lūdzu nolasi šo darba grafika bildi un izvadi tabulu šādā formātā:<br />
-                1: /70174<br />
-                2: b<br />
-                3: 7117<br />
-                ...<br />
-                Kur "/" pirms numura nozīmē naktsmainis (darbs sākās iepriekšējā dienā), "b" = brīvdiena, "D" = dežūra (16h), "D10" = dežūra 10h.
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: "#f59e0b", letterSpacing: 2, marginBottom: 8 }}>IELĪMĒ GEMINI ATBILDI:</div>
-              <textarea
-                rows={14}
-                placeholder={"1: /70174\n2: b\n3: 7117\n4: 7628\n..."}
-                value={geminiText}
-                onChange={function(e) { setGeminiText(e.target.value); }}
-              />
-            </div>
-
-            {parsed && Object.keys(parsed.schedule).length > 0 && (
-              <div style={{ background: "#1a2a1a", border: "1px solid #2a5c35", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 11, color: "#4ade80" }}>
-                ✓ Atpazītas {Object.keys(parsed.schedule).length} dienas
-                {parsed.month && <span> · {MONTH_LV[parsed.month]}</span>}
-                {parsed.year && <span> {parsed.year}</span>}
-              </div>
-            )}
-
-            <button className="btn" disabled={!parsed}
-              onClick={function() { setStep(STEPS.EDIT); }}
-              style={{ width: "100%", fontSize: 15 }}>
-              TĀLĀK →
-            </button>
-          </div>
-        )}
-
-        {/* STEP 2: EDIT */}
-        {step === STEPS.EDIT && (
-          <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, letterSpacing: 4 }}>PĀRBAUDI UN REDIĢĒ</div>
-                <div style={{ fontSize: 11, color: "#4a4d5a", letterSpacing: 1 }}>KLIKŠĶINI UZ TŪRES LAI LABOTU · PIEVIENO PDF FAILUS</div>
-              </div>
-              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: "#6b7280" }}>Mēnesis:</span>
-                  <select value={metaMonth} onChange={function(e) { setMetaMonth(e.target.value); }}>
-                    <option value="">—</option>
-                    {MONTH_LV.slice(1).map(function(m, i) { return <option key={i+1} value={i+1}>{m}</option>; })}
-                  </select>
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: "#6b7280" }}>Gads:</span>
-                  <input type="number" value={metaYear} onChange={function(e) { var v = parseInt(e.target.value); if (v && v > 2000) setMetaYear(v); }} style={{ width: 80 }} />
-                </div>
-              </div>
-            </div>
-
-            <div className="mob-edit-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
-              {/* Schedule table */}
-              <div style={{ background: "#161820", border: "1px solid #2a2d3a", borderRadius: 10, padding: "14px" }}>
-                <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 12 }}>GRAFIKS — KLIKŠĶINI LAI LABOTU</div>
-                <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 80px auto", gap: 6, marginBottom: 8, padding: "0 8px" }}>
-                  {["D","TŪRE","",""].map(function(hh, i) { return <div key={i} style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1 }}>{hh}</div>; })}
-                </div>
-                <div style={{ maxHeight: 460, overflowY: "auto" }}>
-                  {Array.from({ length: daysInMonth() }).map(function(_, i) {
-                    var d = i + 1;
-                    var e = editSchedule[d] || { tour: "b", prevNight: false };
-                    var dow = getDow(d);
-                    var isWE = dow === 6 || dow === 7;
-                    var isEditing = editingDay === d;
-                    var isOff = !e.tour || e.tour === "b";
-                    return (
-                      <div key={d} className={"erow" + (isWE ? " wknd" : "")}>
-                        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: isWE ? "#f59e0b" : "#6b7280", textAlign: "center" }}>{d}</div>
-                        {isEditing ? (
-                          <input
-                            autoFocus
-                            className="edit-inp"
-                            value={editVal}
-                            onChange={function(ev) { setEditVal(ev.target.value); }}
-                            onKeyDown={function(ev) { if (ev.key === "Enter") saveEdit(d); if (ev.key === "Escape") setEditingDay(null); }}
-                            placeholder="/70174 vai b"
-                          />
-                        ) : (
-                          <div
-                            onClick={function() { setEditingDay(d); setEditVal(e.prevNight ? "/" + e.tour : e.tour); }}
-                            style={{ cursor: "pointer", fontSize: 11, color: isOff ? "#3a3d4a" : "#93c5fd", padding: "2px 0" }}
-                          >
-                            {e.prevNight && <span style={{ color: "#4ade80", marginRight: 4 }}>↩/</span>}
-                            {e.tour || "b"}
-                          </div>
-                        )}
-                        <div style={{ fontSize: 9 }}>
-                          {isOff ? (
-                            <span className="tg tag-b">BRĪVS</span>
-                          ) : e.tour === "D" ? (
-                            <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>D{e.dutyHours && e.dutyHours !== 16 ? e.dutyHours : ""}</span>
-                          ) : e.prevNight ? (
-                            <span className="tg tag-p">↩ NAKTS</span>
-                          ) : (
-                            <span className="tg tag-w">DARBS</span>
-                          )}
-                        </div>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          {isEditing ? (
-                            <>
-                              <button className="btn-sm" style={{ fontSize: 10, padding: "3px 8px" }} onClick={function() { saveEdit(d); }}>✓</button>
-                              <button className="btn-red" style={{ padding: "3px 8px" }} onClick={function() { setEditingDay(null); }}>✗</button>
-                            </>
-                          ) : (
-                            <button className="btn-sm" style={{ fontSize: 9, padding: "3px 8px" }}
-                              onClick={function() { setEditingDay(d); setEditVal(e.prevNight ? "/" + e.tour : e.tour || "b"); }}>
-                              ✏
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ marginTop: 10, fontSize: 9, color: "#3a3d4a", lineHeight: 1.7 }}>
-                  Ievades formāts: <span style={{ color: "#f59e0b" }}>70157</span> = tūre · <span style={{ color: "#4ade80" }}>/70174</span> = naktsmainis · <span style={{ color: "#06b6d4" }}>D</span> = dežūra 16h · <span style={{ color: "#06b6d4" }}>D10</span> = dežūra 10h · <span style={{ color: "#4a4d5a" }}>b</span> = brīvdiena
-                </div>
-              </div>
-
-              {/* PDF upload */}
-              <div>
-                <div style={{ background: "#161820", border: "1px solid #2a2d3a", borderRadius: 10, padding: "14px", marginBottom: 16 }}>
-                  <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 12 }}>TŪRU PDF FAILI (KK + VVP)</div>
-
-                  {calData && calData.pdfTours && Object.keys(calData.pdfTours).length > 0 && pdfs.length === 0 && (
-                    <div style={{ background: "#1a2a1a", border: "1px solid #2a5c35", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 11, color: "#4ade80" }}>
-                      ✓ Jau ielādētas {Object.keys(calData.pdfTours).length} tūres no iepriekšējiem PDF. Pievieno jaunus tikai ja vajag papildus tūres.
-                    </div>
-                  )}
-
-                  <div className="dz" onClick={function() { pdfInputRef.current.click(); }} onDrop={onPdfDrop} onDragOver={function(e) { e.preventDefault(); }}
-                    style={{ minHeight: 100, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                    <input ref={pdfInputRef} type="file" accept="application/pdf" multiple hidden onChange={onPdfDrop} />
-                    {pdfs.length === 0 ? (
-                      <>
-                        <div style={{ fontSize: 24 }}>📋</div>
-                        <div style={{ fontSize: 11, color: "#4a4d5a" }}>{calData && calData.pdfTours ? "Pievieno papildus PDF (pēc izvēles)" : "Ievelc vai klikšķini"}</div>
-                      </>
-                    ) : (
-                      <div style={{ width: "100%" }}>
-                        {pdfs.map(function(f, i) {
-                          return (
-                            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "1px solid #1c1f2b", fontSize: 11 }}>
-                              <span style={{ color: "#10b981", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "85%" }}>✓ {f.name}</span>
-                              <button onClick={function(e) { e.stopPropagation(); removePdf(i); }} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 15 }}>×</button>
-                            </div>
-                          );
-                        })}
-                        <div style={{ marginTop: 8, fontSize: 10, color: "#4a4d5a", textAlign: "center" }}>+ klikšķini lai pievienotu vēl</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ background: "#1a1505", border: "1px solid #3a2a0544", borderRadius: 8, padding: "10px 14px", fontSize: 10, color: "#a37a20", lineHeight: 1.7, marginBottom: 16 }}>
-                  {calData && calData.pdfTours ? "PDF dati jau saglabāti. \"IZVEIDOT KALENDĀRU\" pārbūvēs visu no jauna." : "Pievienojiet visus KK un VVP PDF failus lai nolasītu tūru laikus."}
-                </div>
-
-                {error && <div style={{ background: "#2a1515", border: "1px solid #ef4444", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 11, color: "#ef4444" }}>⚠ {error}</div>}
-
-                <button className="btn" onClick={buildCalendar} disabled={(!hasPreviousPdfData && pdfs.length === 0) || !metaMonth}
-                  style={{ width: "100%", fontSize: 15 }}>
-                  IZVEIDOT KALENDĀRU →
-                </button>
-                {Object.keys(allCalData).length > 0 && (
-                  <button className="btn-ghost" onClick={function() { setStep(STEPS.CALENDAR); setSelectedDay(null); }}
-                    style={{ width: "100%", marginTop: 8, fontSize: 13, padding: "10px 16px" }}>
-                    ← ATPAKAĻ UZ KALENDĀRU (bez pārbūves)
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* LOADING */}
-        {step === STEPS.LOADING && (
-          <div style={{ textAlign: "center", padding: "60px 20px" }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, letterSpacing: 6, color: "#f59e0b", marginBottom: 24 }}>APSTRĀDĀ...</div>
-            <div style={{ fontSize: 13, color: "#9ca3af", marginBottom: 20 }}>{loadStep}</div>
-            <div className="pb" style={{ maxWidth: 400, margin: "0 auto 8px" }}>
-              <div className="pf" style={{ width: loadPct + "%" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 30 }}>
-              {[0,1,2].map(function(i) { return <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b", animation: "pulse 1.2s infinite " + (i*0.2) + "s" }} />; })}
-            </div>
-            <button className="btn-ghost" onClick={function() { setStep(STEPS.EDIT); setLoadStep(""); setLoadPct(0); }}
-              style={{ marginTop: 30, fontSize: 12 }}>ATCELT</button>
-          </div>
-        )}
-
-        {/* CALENDAR */}
-        {step === STEPS.CALENDAR && calData && (
-          <div>
-            <div style={{ textAlign: "center", marginBottom: 24 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
-                <button onClick={function() { navigateMonth(-1); }} disabled={!canGoPrev}
-                  style={{ background: "none", border: "none", fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: canGoPrev ? "#f59e0b" : "#1c1f2b", cursor: canGoPrev ? "pointer" : "default", padding: "0 8px", lineHeight: 1 }}>◀</button>
-                <div>
-                  <div className="mob-title" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, letterSpacing: 8, color: "#f59e0b", lineHeight: 1 }}>
-                    {MONTH_LV[calData.month].toUpperCase()}
-                  </div>
-                  <div className="mob-year" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: "#2a2d3a", letterSpacing: 6 }}>{calData.year}</div>
-                </div>
-                <button onClick={function() { navigateMonth(1); }} disabled={!canGoNext}
-                  style={{ background: "none", border: "none", fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: canGoNext ? "#f59e0b" : "#1c1f2b", cursor: canGoNext ? "pointer" : "default", padding: "0 8px", lineHeight: 1 }}>▶</button>
-              </div>
-              {monthKeys.length > 1 && (
-                <div style={{ fontSize: 9, color: "#4a4d5a", marginTop: 4 }}>
-                  {monthKeys.map(function(mk) {
-                    var parts = mk.split("-"); var m = parseInt(parts[1]);
-                    return <span key={mk} style={{ margin: "0 4px", color: mk === activeKey ? "#f59e0b" : "#2a2d3a", cursor: "pointer" }}
-                      onClick={function() { setActiveKey(mk); setSelectedDay(null); setEditDayTour(""); }}>●</span>;
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Stats */}
-            <div className="mob-stats" style={{ display: "flex", gap: 8, marginBottom: 16, justifyContent: "center", flexWrap: "wrap" }}>
-              {[
-                { l: "DARBA DIENAS", v: totalWork, c: "#3b82f6" },
-                { l: "BRĪVDIENAS", v: totalOff, c: "#2dd4bf" },
-                { l: "STUNDAS", v: totalHrs, c: "#f59e0b", click: true },
-                notFound > 0 ? { l: "NAV ATRASTS", v: notFound, c: "#ef4444" } : null,
-              ].filter(Boolean).map(function(s) {
-                return (
-                  <div key={s.l} className="sc" style={{ textAlign: "center", minWidth: 80, cursor: s.click ? "pointer" : "default", border: s.click && showBreakdown ? "1px solid #f59e0b" : undefined }}
-                    onClick={s.click ? function() { setShowBreakdown(!showBreakdown); } : undefined}>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: s.c }}>{s.v}</div>
-                    <div style={{ fontSize: 8, color: "#4a4d5a", letterSpacing: 1 }}>{s.l}{s.click ? " ▾" : ""}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Hours breakdown */}
-            {showBreakdown && breakdown && (
-              <div style={{ background: "#161820", border: "1px solid #f59e0b44", borderRadius: 10, padding: "16px 20px", marginBottom: 16 }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: "#f59e0b", letterSpacing: 2, marginBottom: 12 }}>STUNDU SADALĪJUMS</div>
-                <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: "#f59e0b" }}>{totalHrs}</div>
-                    <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1 }}>KOPĀ</div>
-                  </div>
-                  <div>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: "#8b5cf6" }}>{breakdown.nightH}</div>
-                    <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1 }}>NAKTS (22-06)</div>
-                  </div>
-                  <div>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: "#ef4444" }}>{breakdown.holidayH}</div>
-                    <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1 }}>SVĒTKU</div>
-                  </div>
-                  <div>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: "#06b6d4" }}>{breakdown.dutyH}</div>
-                    <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1 }}>DEŽŪRAS</div>
-                  </div>
-                </div>
-                {breakdown.dutyDays.length > 0 && (
-                  <div style={{ marginTop: 10, fontSize: 10, color: "#06b6d4" }}>
-                    Dežūras: {breakdown.dutyDays.map(function(hd) { return hd + "." + MONTH_LV[calData.month].toLowerCase().slice(0,3); }).join(", ")} ({breakdown.dutyDays.length} dienas × 12h)
-                  </div>
-                )}
-                {breakdown.holidayDays.length > 0 && (
-                  <div style={{ marginTop: 10, fontSize: 10, color: "#6b7280" }}>
-                    Svētku dienas šajā mēnesī: {breakdown.holidayDays.map(function(hd) { return hd + "." + MONTH_LV[calData.month].toLowerCase().slice(0,3); }).join(", ")}
-                  </div>
-                )}
-                {breakdown.holidayDays.length === 0 && (
-                  <div style={{ marginTop: 10, fontSize: 10, color: "#4a4d5a" }}>Šajā mēnesī nav svētku dienu</div>
-                )}
-              </div>
-            )}
-
-            {/* Legend */}
-            <div className="mob-legend" style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", fontSize: 9, color: "#6b7280" }}>
-              {[
-                { bg: "#131a2a", br: "#1e2d4a", l: "Darbs" },
-                { bg: "#1e3045", br: "#2e5a7c", l: "→ Turpinās" },
-                { bg: "#1f1535", br: "#3b2a5c", l: "🌙 Naktsmainis" },
-                { bg: "#1f2a20", br: "#2a5c35", l: "↩ Nakts beigas" },
-                { bg: "#2a1215", br: "#4a1a1e", l: "Brīvdiena" },
-                { bg: "#2a1a10", br: "#5c3a1a", l: "Nav atrasta" },
-              ].map(function(item) {
-                return (
-                  <div key={item.l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <div style={{ width: 11, height: 11, borderRadius: 3, background: item.bg, border: "1px solid " + item.br, flexShrink: 0 }} />
-                    {item.l}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* DOW header */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, marginBottom: 3 }}>
-              {DAY_LV.map(function(d) { return <div key={d} style={{ textAlign: "center", fontSize: 10, color: d === "Se" || d === "Sv" ? "#f59e0b" : "#4a4d5a", padding: "3px 0", letterSpacing: 1 }}>{d}</div>; })}
-            </div>
-
-            {/* Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
-              {Array.from({ length: firstDow - 1 }).map(function(_, i) { return <div key={"e" + i} />; })}
-
-              {Array.from({ length: calData.daysInMonth }).map(function(_, i) {
-                var d = i + 1;
-                var info = calData.calendar[d];
-                var isOff = !info || info.type === "off";
-                var isPrev = info && info.prevDayOvernight;
-                var isNight = !isPrev && info && info.overnight;
-                var isNF = info && info.notFound;
-                var isSel = selectedDay === d;
-                var w = new Date(calData.year, calData.month - 1, d).getDay();
-                var isWE = w === 0 || w === 6;
-                // Check if this day's tour continues to next day
-                var nextDayInfo = d < calData.daysInMonth ? calData.calendar[d + 1] : null;
-                var continuesNext = !isOff && !isPrev && !isNight && nextDayInfo && nextDayInfo.prevDayOvernight;
-                // Overnight start = purple, continuation = green, continues next = light blue, regular work = blue, off = red
-                var cls = isOff ? "do" : isNF ? "dnf" : isPrev ? "dp" : isNight ? "dn" : continuesNext ? "dc2" : "dw";
-                // Moon only on true overnight: start day with overnight=true, or continuation where prev day has overnight=true
-                var prevDayInfo = d > 1 ? calData.calendar[d - 1] : null;
-                var showMoon = isNight || (isPrev && prevDayInfo && prevDayInfo.overnight);
-
-                return (
-                  <div key={d} className={"dc " + cls + (isSel ? " sel" : "")} onClick={function() { setSelectedDay(isSel ? null : d); setEditDayTour(""); setEditTimeStart(""); setEditTimeEnd(""); }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
-                      <span className="mob-cell-day" style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, lineHeight: 1, color: isOff ? (isWE ? "#f87171" : "#fca5a5") : isWE ? "#fbbf24" : "#e8eaf0" }}>{d}</span>
-                      {!isOff && <span className="mob-cell-icon" style={{ fontSize: 10 }}>{isPrev ? (showMoon ? "🌙↩" : "↩") : showMoon ? "🌙" : continuesNext ? "→" : ""}{isNF ? "⚠" : ""}</span>}
-                    </div>
-                    {isOff ? (
-                      <div className="mob-cell-label" style={{ fontSize: 10, color: "#f87171", letterSpacing: 1, marginTop: 6 }}>BRĪVS</div>
-                    ) : (
-                      <>
-                        <div className="mob-cell-tour" style={{ fontSize: 9, color: "#f59e0b88", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{info.tour}</div>
-                        {info.startTime !== "?" ? (
-                          isPrev ? (
-                            <>
-                              <div className="mob-cell-tour" style={{ fontSize: 9, color: "#86efac" }}>beidzas:</div>
-                              <div className="mob-cell-time" style={{ fontSize: 11, color: "#4ade80", fontWeight: 500 }}>{info.endTime}</div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="mob-cell-time" style={{ fontSize: 11, color: "#93c5fd", fontWeight: 500 }}>{info.startTime}</div>
-                              <div className="mob-cell-arrow" style={{ fontSize: 9, color: "#6b7280" }}>{info.endTime}</div>
-                            </>
-                          )
-                        ) : <div className="mob-cell-tour" style={{ fontSize: 9, color: "#5c3a1a" }}>nav PDF</div>}
-                        {info.hours && <div className="mob-cell-hrs" style={{ fontSize: 8, color: "#3a3d4a", textAlign: "right" }}>{info.hours}h</div>}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Day detail */}
-            {selectedDay && selDay && (
-              <div style={{ marginTop: 18, background: "#161820", border: "1px solid " + (selDay.type === "off" ? "#3a1a1a" : selDay.prevDayOvernight ? "#2a5c35" : selDay.overnight ? "#3b2a5c" : "#2a3a5c"), borderRadius: 12, padding: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 50, color: "#f59e0b", lineHeight: 1 }}>{selectedDay}</div>
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3 }}>{MONTH_LV[calData.month].toUpperCase()}</div>
-                    <div style={{ fontSize: 10, color: "#4a4d5a", letterSpacing: 2, marginTop: 2 }}>
-                      {DOW_LV[(function() { var ww = new Date(calData.year, calData.month-1, selectedDay).getDay(); return ww===0?7:ww; })()]}
-                    </div>
-                  </div>
-                  {selDay.type !== "off" && (
-                    <div style={{ flex: 1, display: "flex", gap: 22, flexWrap: "wrap" }}>
-                      {selDay.prevDayOvernight ? (
-                        <div>
-                          <div style={{ fontSize: 10, color: "#4a4d5a", letterSpacing: 1, marginBottom: 4 }}>DARBS SĀKĀS IEPRIEKŠĒJĀ DIENĀ</div>
-                          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: "#86efac", letterSpacing: 2 }}>BEIDZAS ŠODIEN</div>
-                          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#4ade80" }}>{selDay.endTime}</div>
-                          {!selDay.hours && <div style={{ fontSize: 9, color: "#4a4d5a", marginTop: 4 }}>Stundas ieskaitītas iepriekšējā dienā</div>}
-                        </div>
-                      ) : selDay.startTime === "?" ? (
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 11, color: "#f59e0b", letterSpacing: 1, marginBottom: 10 }}>⚠ IEVADI DARBA LAIKUS:</div>
-                          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                            <div>
-                              <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1, marginBottom: 4 }}>SĀKUMS</div>
-                              <input type="text" inputMode="numeric" value={editTimeStart} onChange={function(e) { setEditTimeStart(e.target.value); }}
-                                onBlur={function() { if (editTimeStart) setEditTimeStart(autoFormatTime(editTimeStart)); }}
-                                placeholder="1408" style={{ background: "#0f1117", border: "2px solid #f59e0b44", color: "#93c5fd", padding: "8px", borderRadius: 6, fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, outline: "none", width: 100, textAlign: "center" }} />
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: "#4a4d5a", letterSpacing: 1, marginBottom: 4 }}>BEIGAS</div>
-                              <input type="text" inputMode="numeric" value={editTimeEnd} onChange={function(e) { setEditTimeEnd(e.target.value); }}
-                                onBlur={function() { if (editTimeEnd) setEditTimeEnd(autoFormatTime(editTimeEnd)); }}
-                                placeholder="2306" style={{ background: "#0f1117", border: "2px solid #f59e0b44", color: "#10b981", padding: "8px", borderRadius: 6, fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, outline: "none", width: 100, textAlign: "center" }} />
-                            </div>
-                            <button className="btn" disabled={!editTimeStart || !editTimeEnd}
-                              onClick={function() { updateDayTimes(selectedDay, editTimeStart, editTimeEnd); }}
-                              style={{ padding: "10px 20px", fontSize: 14, alignSelf: "flex-end" }}>SAGLABĀT</button>
-                          </div>
-                          <div style={{ fontSize: 9, color: "#4a4d5a", marginTop: 6 }}>Formāts: 14:08 · Stundas aprēķinās automātiski</div>
-                        </div>
-                      ) : (
-                        <>
-                          <div>
-                            <div style={{ fontSize: 10, color: "#4a4d5a", letterSpacing: 1, marginBottom: 4 }}>SĀKUMS</div>
-                            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#3b82f6" }}>{selDay.startTime}</div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, color: "#4a4d5a", letterSpacing: 1, marginBottom: 4 }}>BEIGAS</div>
-                            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#10b981" }}>{selDay.endTime}</div>
-                          </div>
-                          {selDay.hours && (
-                            <div>
-                              <div style={{ fontSize: 10, color: "#4a4d5a", letterSpacing: 1, marginBottom: 4 }}>STUNDAS</div>
-                              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#f59e0b" }}>{selDay.hours}</div>
-                            </div>
-                          )}
-                          {selDay.dutyBeforeH && (
-                            <div>
-                              <div style={{ fontSize: 10, color: "#06b6d4", letterSpacing: 1, marginBottom: 4 }}>DEŽŪRA</div>
-                              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#06b6d4" }}>{selDay.dutyBeforeH}h</div>
-                              <div style={{ fontSize: 8, color: "#4a4d5a" }}>05:00–{selDay.dutyBeforeEnd}</div>
-                            </div>
-                          )}
-                          {selDay.dutyHours && !selDay.isDuty && !selDay.dutyBeforeH && (
-                            <div>
-                              <div style={{ fontSize: 10, color: "#06b6d4", letterSpacing: 1, marginBottom: 4 }}>DEŽŪRA</div>
-                              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 38, color: "#06b6d4" }}>{selDay.dutyHours}h</div>
-                              <div style={{ fontSize: 8, color: "#4a4d5a" }}>05:00–{selDay.startTime}</div>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-                  {selDay.type === "off" && <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: "#f87171", letterSpacing: 3 }}>BRĪVDIENA</div>}
-                </div>
-
-                {selDay.type !== "off" && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #1c1f2b", display: "flex", gap: 7, flexWrap: "wrap" }}>
-                    <span className="tg" style={{ background: "#1c2335", color: "#60a5fa", border: "1px solid #2a3a5c" }}>TŪRE: {selDay.tour}</span>
-                    {selDay.overnight && <span className="tg" style={{ background: "#1f1535", color: "#a78bfa", border: "1px solid #3b2a5c" }}>🌙 NAKTSMAINIS</span>}
-                    {selDay.prevDayOvernight && <span className="tg" style={{ background: "#1f2a20", color: "#4ade80", border: "1px solid #2a5c35" }}>↩ IEPRIEKŠĒJĀ NAKTS BEIGAS</span>}
-                    {selDay.notFound && <span className="tg" style={{ background: "#2a1a10", color: "#f59e0b", border: "1px solid #5c3a1a" }}>⚠ NAV PDF</span>}
-                    {selDay.dutyBeforeH && <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>DEŽŪRA {selDay.dutyBeforeH}h (05:00–{selDay.dutyBeforeEnd})</span>}
-                    {selDay.dutyHours && !selDay.isDuty && !selDay.dutyBeforeH && <span className="tg" style={{ background: "#0a2a2a", color: "#06b6d4", border: "1px solid #155e75" }}>+ DEŽŪRA {selDay.dutyHours}h</span>}
-                  </div>
-                )}
-
-                {/* Inline tour edit */}
-                <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #1c1f2b" }}>
-                  <div style={{ fontSize: 10, color: "#4a4d5a", letterSpacing: 2, marginBottom: 8 }}>MAINĪT TŪRI:</div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input
-                      type="text"
-                      value={editDayTour}
-                      onChange={function(e) { setEditDayTour(e.target.value); }}
-                      onKeyDown={function(e) { if (e.key === "Enter" && editDayTour.trim()) updateDayTour(selectedDay, editDayTour); }}
-                      placeholder={selDay.type === "off" ? "b (brīvdiena)" : selDay.tour || "tūres nr."}
-                      style={{ flex: 1, background: "#0f1117", border: "1px solid #2a2d3a", color: "#e8eaf0", padding: "8px 12px", borderRadius: 6, fontFamily: "'DM Mono',monospace", fontSize: 13, outline: "none" }}
-                    />
-                    <button
-                      className="btn"
-                      disabled={!editDayTour.trim()}
-                      onClick={function() { updateDayTour(selectedDay, editDayTour); }}
-                      style={{ padding: "8px 20px", fontSize: 13 }}
-                    >ATJAUNOT</button>
-                  </div>
-                  <div style={{ fontSize: 10, color: "#3a3d4a", marginTop: 6 }}>
-                    Piemēri: <span style={{ color: "#6b7280" }}>70259</span> = darbs · <span style={{ color: "#6b7280" }}>/70174</span> = naktsmainis · <span style={{ color: "#06b6d4" }}>D</span> = dežūra 16h · <span style={{ color: "#06b6d4" }}>D10</span> = 10h · <span style={{ color: "#6b7280" }}>b</span> = brīvdiena
-                  </div>
-                </div>
-
-                {/* Inline time edit */}
-                {selDay.type !== "off" && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #1c1f2b" }}>
-                    <div style={{ fontSize: 10, color: selDay.startTime === "?" ? "#f59e0b" : "#4a4d5a", letterSpacing: 2, marginBottom: 8 }}>
-                      {selDay.startTime === "?" ? "⚠ IEVADI LAIKUS MANUĀLI:" : "MAINĪT LAIKUS:"}
-                    </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                        <span style={{ fontSize: 10, color: "#6b7280" }}>No:</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={editTimeStart}
-                          onChange={function(e) { setEditTimeStart(e.target.value); }}
-                          onBlur={function() { if (editTimeStart) setEditTimeStart(autoFormatTime(editTimeStart)); }}
-                          placeholder={selDay.startTime !== "?" ? selDay.startTime : "1408"}
-                          style={{ background: "#0f1117", border: "1px solid " + (selDay.startTime === "?" ? "#f59e0b44" : "#2a2d3a"), color: "#93c5fd", padding: "8px 10px", borderRadius: 6, fontFamily: "'DM Mono',monospace", fontSize: 15, outline: "none", width: 80, textAlign: "center" }}
-                        />
-                      </div>
-                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                        <span style={{ fontSize: 10, color: "#6b7280" }}>Līdz:</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={editTimeEnd}
-                          onChange={function(e) { setEditTimeEnd(e.target.value); }}
-                          onBlur={function() { if (editTimeEnd) setEditTimeEnd(autoFormatTime(editTimeEnd)); }}
-                          placeholder={selDay.endTime !== "?" ? selDay.endTime : "2306"}
-                          style={{ background: "#0f1117", border: "1px solid " + (selDay.endTime === "?" ? "#f59e0b44" : "#2a2d3a"), color: "#10b981", padding: "8px 10px", borderRadius: 6, fontFamily: "'DM Mono',monospace", fontSize: 15, outline: "none", width: 80, textAlign: "center" }}
-                        />
-                      </div>
-                      <button
-                        className="btn"
-                        disabled={!editTimeStart && !editTimeEnd}
-                        onClick={function() { updateDayTimes(selectedDay, editTimeStart || selDay.startTime, editTimeEnd || selDay.endTime); }}
-                        style={{ padding: "8px 16px", fontSize: 13 }}
-                      >✓</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Add more PDFs section */}
-            <div style={{ marginTop: 24, background: "#161820", border: "1px solid #2a2d3a", borderRadius: 10, padding: "14px 18px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2 }}>PAPILDUS PDF FAILI</div>
-                  <div style={{ fontSize: 10, color: "#4a4d5a", marginTop: 2 }}>
-                    {notFound > 0 ? notFound + " tūre" + (notFound > 1 ? "s" : "") + " nav atrastas" : "Visas tūres atrastas"}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input type="file" accept=".pdf" multiple ref={addPdfInputRef} style={{ display: "none" }}
-                    onChange={function(e) { var files = Array.from(e.target.files).filter(function(f) { return f.type === "application/pdf"; }); if (files.length) processAdditionalPdfs(files); e.target.value = ""; }} />
-                  <button className="btn-sm" onClick={function() { if (addPdfInputRef.current) addPdfInputRef.current.click(); }} disabled={editDayUpdating}>
-                    {editDayUpdating ? "⏳ APSTRĀDĀ..." : "+ PIEVIENOT PDF"}
-                  </button>
-                </div>
-              </div>
-              {error && <div style={{ marginTop: 8, padding: "8px 12px", background: "#2a1515", border: "1px solid #5c2020", borderRadius: 6, fontSize: 11, color: "#f87171" }}>{error}</div>}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+function addPdfs(files) {
+  const names = new Set(state.pdfs.map(p => p.name));
+  const newFiles = files.filter(f => !names.has(f.name));
+  state.pdfs = [...state.pdfs, ...newFiles];
+  renderPdfList();
 }
-
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 </script>
 </body>
 </html>

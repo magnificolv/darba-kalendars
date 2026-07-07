@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+  <meta charset="UTF-8">
+  <title>Grafika Tūru Parsēšana</title>
+  <!-- Iekļaujam PDF.js bibliotēku -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #resultTable { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    #resultTable th, #resultTable td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    #resultTable th { background-color: #f2f2f2; }
+    #status { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Grafika Tūru Parsēšana</h1>
+  <input type="file" id="fileInput" accept="application/pdf">
+  <button onclick="processPDF()">Ielādēt un parsēt</button>
+  <p id="status"></p>
+  
+  <table id="resultTable">
+    <thead>
+      <tr>
+        <th>Datums</th>
+        <th>Darba sākums</th>
+        <th>Darba beigas</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  
+  <script>
+    // Mēneša nosaukumu pārveidošana uz mēneša numuru
+    const monthMap = {
+      "janvāris": "01", "janvārī": "01",
+      "februāris": "02", "februārī": "02",
+      "marts": "03",
+      "aprīlis": "04", "aprīlī": "04",
+      "maijs": "05", "maijā": "05",
+      "jūnijs": "06", "jūnijā": "06",
+      "jūlijs": "07", "jūlijā": "07",
+      "augusts": "08", "augustā": "08",
+      "septembris": "09", "septembrī": "09",
+      "oktobris": "10", "oktobrī": "10",
+      "novembris": "11", "novembrī": "11",
+      "decembris": "12", "decembrī": "12"
+    };
+
+    async function processPDF() {
+      const fileInput = document.getElementById('fileInput');
+      const statusEl = document.getElementById('status');
+      const resultTableBody = document.querySelector('#resultTable tbody');
+      resultTableBody.innerHTML = '';
+      
+      if (!fileInput.files.length) {
+        alert("Lūdzu, izvēlies PDF failu.");
+        return;
+      }
+      
+      const file = fileInput.files[0];
+      const arrayBuffer = await file.arrayBuffer();
+      
+      statusEl.textContent = "Apstrāde notiek...";
+      
+      try {
+        // Ielādē PDF dokumentu
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+        
+        // Iterējam caur visām lapām un apvienojam tekstu
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(" ");
+          fullText += pageText + "\n";
+        }
+        
+        // Sadala tekstu rindās – izmanto jaunu rindu kā atdalītāju
+        let lines = fullText.split(/\r?\n/);
+        
+        // Mēģinām atrast datuma informāciju, piemēram: "2025. gada "27." februārī"
+        let headerRegex = /(\d{4})\.\s*gada\s*["']?(\d{1,2})["']?\.\s*(\w+)/i;
+        let headerMatch = fullText.match(headerRegex);
+        let defaultDate = "Nedefinēts";
+        if (headerMatch) {
+          let year = headerMatch[1];
+          let day = headerMatch[2].padStart(2, '0');
+          let monthName = headerMatch[3].toLowerCase();
+          let month = monthMap[monthName] || "01";
+          defaultDate = `${year}-${month}-${day}`;
+        }
+        
+        // Ja dokumentā var būt vairākas datuma norādes, mēs varam mēģināt atjaunot currentDate, ja tiek atrasts kāds jauns formāts
+        // Vienkāršāka pieeja: ja kāda rinda satur rakstītu datumu formātu, tad atjauno currentDate
+        let datePattern = /(\d{2}[./-]\d{2}[./-]\d{4})/; // piemēram, "27.02.2025"
+        let currentDate = defaultDate;
+        
+        // Objektā saglabājam katru datuma ierakstu kā masīvu ar tūru ierakstiem {start, end}
+        let schedule = {};
+        
+        // Iterējam caur katru rindu
+        lines.forEach(line => {
+          line = line.trim();
+          // Ja rinda satur datuma rakstību, atjaunojam currentDate
+          let dateMatch = line.match(datePattern);
+          if (dateMatch) {
+            // Piemēram, ja ir "27.02.2025", tad pārvēršam to uz "2025-02-27"
+            let parts = dateMatch[0].split(/[./-]/);
+            if (parts.length === 3) {
+              currentDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+          }
+          
+          // Ja rinda sākas ar skaitli (tūres numurs), mēģinām atrast laika ierakstus
+          if (/^\d+/.test(line)) {
+            // Meklē laika vērtības formātā HH:MM (vai ar sekundēm)
+            let times = line.match(/(\d{2}:\d{2}(?::\d{2})?)/g);
+            if (times && times.length >= 4) {
+              // Pieņemam, ka trešā vērtība ir darba sākums, ceturtā – darba beigas
+              let startTime = times[2];
+              let endTime = times[3];
+              
+              // Ja datumam vēl nav masīva, inicializējam
+              if (!schedule[currentDate]) {
+                schedule[currentDate] = [];
+              }
+              schedule[currentDate].push({ start: startTime, end: endTime });
+            }
+          }
+        });
+        
+        // Ja kādā datumā nav ierakstu, to varam interpretēt kā brīvdienu
+        // Tagad izveidojam tabulu: katram datumam, ja ir ieraksti, parādām katru tūri; ja nav, tad "Brīvdiena"
+        for (const date in schedule) {
+          if (schedule[date].length === 0) {
+            let row = document.createElement("tr");
+            let dateCell = document.createElement("td");
+            dateCell.textContent = date;
+            let infoCell = document.createElement("td");
+            infoCell.setAttribute("colspan", "2");
+            infoCell.textContent = "Brīvdiena";
+            row.appendChild(dateCell);
+            row.appendChild(infoCell);
+            resultTableBody.appendChild(row);
+          } else {
+            // Ja ir vairākas tūres, katru izvadam savā rindā
+            schedule[date].forEach((entry, index) => {
+              let row = document.createElement("tr");
+              let dateCell = document.createElement("td");
+              // Lai datumam parādās tikai pirmajā rindā, ja vairākas tūres, mēs varam atstāt tukšu pēc tam
+              dateCell.textContent = index === 0 ? date : "";
+              let startCell = document.createElement("td");
+              startCell.textContent = entry.start;
+              let endCell = document.createElement("td");
+              endCell.textContent = entry.end;
+              row.appendChild(dateCell);
+              row.appendChild(startCell);
+              row.appendChild(endCell);
+              resultTableBody.appendChild(row);
+            });
+          }
+        }
+        
+        // Ja dokumentā nav neviena datuma atslēgas, tad mēģinām parādīt noklusējuma datumu
+        if (Object.keys(schedule).length === 0) {
+          let row = document.createElement("tr");
+          let dateCell = document.createElement("td");
+          dateCell.textContent = defaultDate;
+          let infoCell = document.createElement("td");
+          infoCell.setAttribute("colspan", "2");
+          infoCell.textContent = "Brīvdiena";
+          row.appendChild(dateCell);
+          row.appendChild(infoCell);
+          resultTableBody.appendChild(row);
+        }
+        
+        statusEl.textContent = "Apstrāde pabeigta.";
+      } catch (error) {
+        console.error("Kļūda apstrādājot PDF:", error);
+        statusEl.textContent = "Kļūda apstrādājot PDF.";
+      }
+    }
+  </script>
+</body>
+</html>

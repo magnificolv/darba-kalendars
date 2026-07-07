@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+  <meta charset="UTF-8">
+  <title>Grafika Tūru Parsēšana</title>
+  <!-- Iekļaujam PDF.js bibliotēku no CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #resultTable { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    #resultTable th, #resultTable td { border: 1px solid #ddd; padding: 8px; }
+    #resultTable th { background-color: #f2f2f2; }
+  </style>
+</head>
+<body>
+  <h1>Grafika Tūru Parsēšana</h1>
+  <input type="file" id="fileInput" accept="application/pdf">
+  <button onclick="processPDF()">Ielādēt un parsēt</button>
+  <p id="status"></p>
+  
+  <table id="resultTable">
+    <thead>
+      <tr>
+        <th>Datums</th>
+        <th>Agrākais sākums</th>
+        <th>Vēlākais beigu laiks</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  
+  <script>
+    async function processPDF() {
+      const fileInput = document.getElementById('fileInput');
+      const statusEl = document.getElementById('status');
+      const resultTableBody = document.querySelector('#resultTable tbody');
+      resultTableBody.innerHTML = '';
+      
+      if (!fileInput.files.length) {
+        alert("Lūdzu, izvēlies PDF failu.");
+        return;
+      }
+      
+      const file = fileInput.files[0];
+      const arrayBuffer = await file.arrayBuffer();
+      
+      statusEl.textContent = "Apstrāde notiek...";
+      
+      // Ielādē PDF ar PDF.js
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let schedule = {}; // Objekts, kurā atslēgas būs datumi, un vērtības – sākuma un beigu laiki
+      
+      // Iterējam caur visām lapām
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const items = textContent.items;
+        // Apvieno visu tekstu vienā virknes formā
+        const pageText = items.map(item => item.str).join(" ");
+        // Sadala tekstu pēc vairākām tukšām vietām
+        const lines = pageText.split(/\s{2,}/);
+        
+        // Regulārās izteiksmes meklēšanai
+        const dateRegex = /(\d{2}[./-]\d{2}[./-]\d{4})/;
+        const timeRegex = /(\d{2}:\d{2}(?::\d{2})?)/g;
+        let currentDate = null;
+        
+        for (const line of lines) {
+          // Ja rindā ir datums, atjaunojam currentDate
+          const dateMatch = line.match(dateRegex);
+          if (dateMatch) {
+            currentDate = dateMatch[0];
+          }
+          // Meklē laika vērtības (piemēram, "10:11")
+          const times = line.match(timeRegex);
+          if (times && times.length >= 2) {
+            // Pieņemam, ka pirmā laika vērtība ir darba sākums, bet pēdējā – beigu laiks
+            const startTime = times[0];
+            const endTime = times[times.length - 1];
+            // Ja datums nav atrasts, izmantosim noklusējuma vērtību
+            let dateStr = currentDate ? currentDate : "Nedefinēts";
+            
+            // Apkopojam rezultātus: izvēlamies agrāko sākumu un vēlāko beigu laiku
+            if (!schedule[dateStr]) {
+              schedule[dateStr] = { start: startTime, end: endTime };
+            } else {
+              if (startTime < schedule[dateStr].start) {
+                schedule[dateStr].start = startTime;
+              }
+              if (endTime > schedule[dateStr].end) {
+                schedule[dateStr].end = endTime;
+              }
+            }
+          }
+        }
+      }
+      
+      // Pievieno rezultātus HTML tabulai
+      for (const date in schedule) {
+        const row = document.createElement("tr");
+        const dateCell = document.createElement("td");
+        dateCell.textContent = date;
+        const startCell = document.createElement("td");
+        startCell.textContent = schedule[date].start;
+        const endCell = document.createElement("td");
+        endCell.textContent = schedule[date].end;
+        
+        row.appendChild(dateCell);
+        row.appendChild(startCell);
+        row.appendChild(endCell);
+        resultTableBody.appendChild(row);
+      }
+      
+      statusEl.textContent = "Apstrāde pabeigta.";
+    }
+  </script>
+</body>
+</html>
