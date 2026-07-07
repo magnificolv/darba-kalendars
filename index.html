@@ -349,7 +349,7 @@ select {
   <!-- ═══════════ STEP 4: CALENDAR ═══════════ -->
   <div id="step-calendar" style="display:none;">
     <!-- Stats bar -->
-    <div id="stats-bar" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;"></div>
+    <div id="stats-bar" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;"></div>
 
     <!-- Calendar grid -->
     <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
@@ -892,10 +892,6 @@ function renderCalendar() {
     <div class="sc" style="text-align: center; cursor: pointer;" onclick="showHoursBreakdown()" title="Klikšķini lai redzētu sadalījumu">
       <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">KOPĀ STUNDAS ▾</div>
       <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--green);">${totalHrs}h</div>
-    </div>
-    <div class="sc" style="text-align: center; cursor: pointer;" onclick="showHoursBreakdown()" title="Klikšķini lai redzētu sadalījumu">
-      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">NAKTS (22-06)</div>
-      <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--purple);">${calcNightHours()}h</div>
     </div>`;
 
   renderDayDetail();
