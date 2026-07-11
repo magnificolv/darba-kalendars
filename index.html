@@ -262,6 +262,22 @@ select {
       </div>
     </div>
 
+    <!-- CEĻŠ A: Tiešā bildes apstrāde -->
+    <div class="hermes-card" style="margin-bottom: 20px; border-color: var(--green-border);">
+      <h3 style="color: var(--green);">📸 TIEŠĀ APSTRĀDE (JAUNS!)</h3>
+      <p style="font-size: 11px; color: #4ade80; margin-bottom: 12px; line-height: 1.6;">
+        Izvēlies grafika bildi — teksts automātiski parādīsies textarea.
+      </p>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+        <input type="file" id="image-upload" accept="image/*" style="display:none;">
+        <button class="btn-sm" id="btn-upload" onclick="document.getElementById('image-upload').click()"
+          style="background: var(--green-bg); color: var(--green); border-color: var(--green-border); font-size: 13px; padding: 10px 20px;">
+          📸 Izvēlēties grafika bildi
+        </button>
+        <span id="upload-status" style="font-size: 10px; color: var(--text-dim);"></span>
+      </div>
+    </div>
+
     <div style="margin-bottom: 16px;">
       <div class="label">IELĪMĒ GEMINI (VAI HERMES) ATBILDI:</div>
       <textarea id="gemini-input" rows="14"
@@ -1574,6 +1590,50 @@ function showHermesCopied() {
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+// 📸 IMAGE UPLOAD — Tiešā grafika bildes apstrāde caur Cloudflare Worker
+// ═══════════════════════════════════════════════════════════════════════════
+
+const WORKER_URL = 'https://darba-grafiks-worker.magnificox.workers.dev';
+
+function handleImageUpload(file) {
+  const statusEl = document.getElementById('upload-status');
+  const btnEl = document.getElementById('btn-upload');
+  const geminiInput = document.getElementById('gemini-input');
+
+  if (!file || !file.type.startsWith('image/')) {
+    statusEl.textContent = '❌ Nepareizs faila tips';
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+
+  statusEl.textContent = '⏳ Apstrādā...';
+  statusEl.style.color = 'var(--accent)';
+  btnEl.disabled = true;
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  fetch(WORKER_URL, { method: 'POST', body: formData })
+    .then(resp => {
+      if (!resp.ok) return resp.text().then(t => { throw new Error(t.slice(0, 100) || 'API kļūda ' + resp.status); });
+      return resp.text();
+    })
+    .then(text => {
+      geminiInput.value = text.trim();
+      geminiInput.dispatchEvent(new Event('input', { bubbles: true }));
+      statusEl.textContent = '✅ Gatavs! Teksts ielādēts zemāk.';
+      statusEl.style.color = 'var(--green)';
+      btnEl.disabled = false;
+      setTimeout(() => { statusEl.textContent = ''; }, 5000);
+    })
+    .catch(err => {
+      statusEl.textContent = '❌ Kļūda: ' + err.message;
+      statusEl.style.color = 'var(--red)';
+      btnEl.disabled = false;
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
   // Populate month selector
@@ -1598,6 +1658,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const files = Array.from(pdfInput.files).filter(f => f.type === 'application/pdf');
     addPdfs(files);
     pdfInput.value = '';
+  });
+
+  // Image upload handler
+  document.getElementById('image-upload').addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+      handleImageUpload(e.target.files[0]);
+    }
   });
 
   // Gemini text input
