@@ -191,6 +191,168 @@ select {
   border-radius: 10px; padding: 16px; margin-top: 16px;
 }
 .hermes-card h3 { color: var(--purple); font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; margin-bottom: 8px; }
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE (max-width: 640px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* ── Header ── */
+  .header {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  .title-sm { font-size: 16px; letter-spacing: 2px; }
+  .subtitle { font-size: 7px; letter-spacing: 1px; }
+  .header .btn-ghost {
+    padding: 5px 8px;
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+
+  /* ── Container ── */
+  .container {
+    padding: 10px 6px;
+  }
+
+  /* ── Calendar card ── */
+  #cal-card {
+    padding: 8px !important;
+    border-radius: 8px !important;
+  }
+  #cal-card > div:first-child {
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px !important;
+  }
+
+  /* ── Month title & nav ── */
+  #cal-month-title {
+    font-size: 18px !important;
+    min-width: 100px !important;
+    letter-spacing: 2px !important;
+  }
+  #cal-card .btn-ghost[onclick*="changeMonth"] {
+    font-size: 13px !important;
+    padding: 2px 6px !important;
+  }
+
+  /* ── Calendar day headers ── */
+  #cal-days-header { gap: 2px; }
+  #cal-days-header > div {
+    font-size: 8px !important;
+    letter-spacing: 0 !important;
+  }
+
+  /* ── Calendar grid ── */
+  #cal-grid { gap: 2px; }
+
+  /* ── Calendar cells ── */
+  .dc {
+    min-height: 50px;
+    padding: 3px 3px;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .dc > div:first-child > span:first-child {
+    font-size: 12px !important;
+  }
+  .dc > div:first-child > span:last-child {
+    font-size: 6px !important;
+  }
+  .dc > div:nth-child(2) {
+    font-size: 10px !important;
+    margin: 1px 0 !important;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dc > div:nth-child(3) {
+    font-size: 7px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dc > div:nth-child(4) {
+    font-size: 6px !important;
+  }
+  .dc:hover { transform: none; }
+
+  /* ── Legend ── */
+  #cal-card .tg {
+    font-size: 7px !important;
+    padding: 1px 5px;
+    letter-spacing: 0;
+  }
+
+  /* ── Stats bar ── */
+  #stats-bar {
+    gap: 6px !important;
+    margin-bottom: 10px !important;
+  }
+  .sc {
+    padding: 8px 5px !important;
+    border-radius: 6px !important;
+  }
+  .sc > div:first-child {
+    font-size: 7px !important;
+    white-space: nowrap;
+  }
+  .sc > div:last-child {
+    font-size: 18px !important;
+  }
+
+  /* ── Step 1: Paste screen ── */
+  .title-lg {
+    font-size: 24px;
+    letter-spacing: 2px;
+  }
+  .code-box { font-size: 10px; padding: 8px 10px; }
+
+  /* ── Edit step rows ── */
+  .erow {
+    grid-template-columns: 20px 1fr 50px auto;
+    gap: 3px;
+    padding: 3px 4px;
+    font-size: 10px;
+  }
+
+  /* ── Inputs ── */
+  textarea { font-size: 11px; padding: 10px; }
+  input[type=text], input[type=number] { font-size: 11px; padding: 6px 8px; }
+
+  /* ── Modals ── */
+  .modal {
+    width: 95%;
+    padding: 16px;
+    max-width: none;
+  }
+
+  /* ── Day detail ── */
+  #day-detail .sc {
+    padding: 10px !important;
+  }
+  #day-detail [style*="repeat(3, 1fr)"] {
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 6px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TABLET (641px - 900px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (min-width: 641px) and (max-width: 900px) {
+  #cal-card { padding: 14px !important; }
+  .dc { min-height: 70px; padding: 6px 5px; }
+  .dc > div:nth-child(2) { font-size: 12px !important; }
+  .dc > div:nth-child(3) { font-size: 8px !important; }
+  .dc > div:nth-child(4) { font-size: 8px !important; }
+  #cal-days-header > div { font-size: 10px !important; }
+  #cal-grid { gap: 4px; }
+  #cal-days-header { gap: 4px; }
+  #stats-bar { gap: 8px !important; }
+  .sc > div:last-child { font-size: 24px !important; }
+}
 </style>
 </head>
 <body>
@@ -368,7 +530,7 @@ select {
     <div id="stats-bar" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;"></div>
 
     <!-- Calendar grid -->
-    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+    <div id="cal-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <button class="btn-ghost" onclick="changeMonth(-1)" title="Iepriekšējais mēnesis" style="font-size: 16px; padding: 4px 10px;">◀</button>
