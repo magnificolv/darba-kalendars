@@ -483,7 +483,8 @@ select {
         Lūdzu nolasi šo darba grafika bildi un izvadi tabulu šādā formātā:<br>
         1: /70174<br>2: b<br>3: 7117<br>...<br>
         Kur "/" pirms numura nozīmē naktsmainis (darbs sākas iepriekšējā dienā),<br>
-        "b" = brīvdiena, "D" = dežūra (16h), "D10" = dežūra 10h.<br>
+        "b" = brīvdiena, "D" = dežūra 16h (05:00–21:00), "D10" = dežūra 10h.<br>
+        Ja dežūru seko svītra "-" nākamajā dienā — to arī izvadi kā "-" (nevis tūres nr.).<br>
         Tūres numuri ir 4-5 ciparu skaitļi (piem., 5001, 7117, 701/74).<br>
         Neraksti neko citu, tikai šo tabulu.
       </div>
@@ -743,7 +744,15 @@ function escapeHtml(s) {
 }
 
 function isDutyTour(tour) {
-  return !!(tour && /^D10?$/i.test(String(tour).trim()));
+  return !!(tour && /^D(?:10)?$/i.test(String(tour).trim()));
+}
+
+function isDutyMarker(val) {
+  // D / D10 / "-" / "_" / en-dash etc. (second day of duty block in paper schedule)
+  if (val == null) return false;
+  const s = String(val).trim();
+  if (/^D(?:10)?$/i.test(s)) return true;
+  return /^[\-–—_]$/.test(s);
 }
 
 function defaultDutyHours(tour) {
@@ -752,6 +761,19 @@ function defaultDutyHours(tour) {
   if (t === 'D10') return 10.0;
   if (t === 'D') return 16.0;
   return null;
+}
+
+// Dežūra default times (when not replaced by a called-out tour):
+// D  = 05:00–21:00 = 16h; D10 = 05:00–15:00 = 10h (fallback)
+function defaultDutyTimes(tour) {
+  const t = String(tour || '').trim().toUpperCase();
+  if (t === 'D10') return { startTime: '05:00', endTime: '15:00', hours: 10.0 };
+  if (t === 'D') return { startTime: '05:00', endTime: '21:00', hours: 16.0 };
+  return null;
+}
+
+function isDutyContinuationTour(tour) {
+  return !!(tour && /^[\-–—_]$/.test(String(tour).trim()));
 }
 
 const OCR_STORAGE_KEY = 'darba-kalendars-ocr-v1';
@@ -882,10 +904,14 @@ function startOcrUpload() {
 function normalizeTour(raw) {
   if (!raw) return raw;
   const s = String(raw).trim();
-  if (!s || s.toLowerCase() === 'b' || s === '-' || s.toLowerCase() === 'd' || s.toLowerCase() === 'd10') return s;
+  if (!s) return s;
+  // day off
+  if (/^b$/i.test(s)) return 'b';
+  // duty second-day marker from paper schedule ("-", "_", dash variants)
+  if (/^[\-–—_]$/.test(s)) return '-';
+  // duty
+  if (/^D(?:10)?$/i.test(s)) return s.toUpperCase();
   if (s.includes('/')) return s;
-  // Handle D/D10 duty patterns
-  if (/^D10?$/i.test(s)) return s.toUpperCase();
   // 5-digit tour numbers → "xxx/xx" format (e.g., "70459" → "704/59")
   if (/^\d{5}$/.test(s)) return s.slice(0, 3) + '/' + s.slice(3);
   // 4-digit tour numbers → keep as-is (e.g., "7226")
@@ -983,9 +1009,11 @@ function parseGeminiText(text) {
   }
 
   // Parse day:value pairs — handle multiple per line (e.g., "5: b 6: 70255 7: /70355")
-  const pairRegex = /(\d{1,2})\s*[:.\-]\s*(\/?[bBdD]\d*|\/?\d{4,5})\b/g;
+  // Also accept duty continuation markers "-", "_", en/em dash on next day after D.
+  // NOTE: separator after day must be ":" or "." — plain "-" is a VALUE (duty cont.), not a separator.
+  const pairRegex = /(\d{1,2})\s*[:.]\s*(\/?(?:D(?:10)?|[bB]|\d{3,5}(?:\/\d{2,3})?|[\-–—_]))(?=\s|$|[,;])/gi;
   for (const line of lines) {
-    if (/^[-|=\s]+$/.test(line)) continue;
+    if (/^[=|\s]+$/.test(line)) continue;
     let pm;
     while ((pm = pairRegex.exec(line)) !== null) {
       const day = parseInt(pm[1]);
@@ -994,15 +1022,32 @@ function parseGeminiText(text) {
       const prevNight = raw.startsWith('/');
       const cleaned = raw.replace(/^\/\s*/, '').trim();
       const isOff = /^b$/i.test(cleaned);
-      const isDuty = /^D10?$/i.test(cleaned);
+      const isDuty = /^D(?:10)?$/i.test(cleaned);
+      const isDutyCont = /^[\-–—_]$/.test(cleaned);
 
       if (isOff) {
         result[day] = { tour: 'b', prevNight: false };
       } else if (isDuty) {
         result[day] = { tour: cleaned.toUpperCase(), prevNight: false };
-      } else if (/^\d{4,5}$/.test(cleaned)) {
+      } else if (isDutyCont) {
+        // Second day of duty pair on paper ("-" under next date after D)
+        result[day] = { tour: '-', prevNight: false, dutyContinuation: true };
+      } else if (/^\d{3,5}(?:\/\d{2,3})?$/.test(cleaned) || /^\d{4,5}$/.test(cleaned)) {
         result[day] = { tour: normalizeTour(cleaned), prevNight };
       }
+    }
+  }
+
+  // If parser saw "D" then a numeric tour next day without dash, leave as-is.
+  // If we have D on day N and nothing/"-"/dutyContinuation on N+1 already handled above.
+  // Link D → next "-" as duty pair for UI convenience.
+  const days = Object.keys(result).map(Number).sort((a,b)=>a-b);
+  for (const d of days) {
+    const e = result[d];
+    if (!e || !isDutyTour(e.tour)) continue;
+    const nxt = result[d + 1];
+    if (nxt && (nxt.dutyContinuation || isDutyContinuationTour(nxt.tour))) {
+      result[d + 1] = { tour: '-', prevNight: false, dutyContinuation: true, dutyParentDay: d };
     }
   }
 
@@ -1209,17 +1254,39 @@ async function buildCalendar() {
         calendar[d] = { type: 'off' };
         continue;
       }
+
+      // Duty continuation day ("-"): visual marker only; hours stay on the D day
+      if (entry.dutyContinuation || isDutyContinuationTour(entry.tour)) {
+        calendar[d] = {
+          type: 'work',
+          tour: '-',
+          startTime: '—',
+          endTime: '—',
+          overnight: false,
+          prevDayOvernight: false,
+          baseHours: 0,
+          hours: 0,
+          countedHours: 0,
+          notFound: false,
+          isDuty: true,
+          dutyContinuation: true,
+          dutyParentDay: entry.dutyParentDay || (d - 1)
+        };
+        continue;
+      }
+
       const dow = getDow(d, metaMonth, metaYear);
       const variants = lookupTour(tours, entry.tour);
       const v = getBestVariant(variants, dow);
       const prevN = entry.prevNight === true;
+      const duty = isDutyTour(entry.tour);
+      const dutyT = duty ? defaultDutyTimes(entry.tour) : null;
 
-      let st = v ? v.startTime : '?';
-      let et = v ? v.endTime : '?';
+      let st = v ? v.startTime : (dutyT ? dutyT.startTime : '?');
+      let et = v ? v.endTime : (dutyT ? dutyT.endTime : '?');
       let hrs = v ? (v.hours || calcHours(v.startTime, v.endTime)) : null;
-      if (hrs == null && isDutyTour(entry.tour)) {
-        hrs = defaultDutyHours(entry.tour);
-      }
+      if (hrs == null && dutyT) hrs = dutyT.hours;
+
       calendar[d] = {
         type: 'work',
         tour: entry.tour,
@@ -1230,7 +1297,8 @@ async function buildCalendar() {
         baseHours: hrs,
         hours: hrs,
         countedHours: hrs,
-        notFound: !variants && !isDutyTour(entry.tour)
+        notFound: !variants && !duty,
+        isDuty: duty
       };
     }
 
@@ -1287,9 +1355,15 @@ function renderEditRows() {
     const isWE = dow === 6 || dow === 7;
     const isEditing = state.editingDay === d;
     const isOff = !e.tour || e.tour === 'b';
+    const isDuty = isDutyTour(e.tour);
+    const isDutyCont = e.dutyContinuation || isDutyContinuationTour(e.tour);
     const displayTour = e.prevNight ? '/' + e.tour : (e.tour || 'b');
-    const tagClass = isOff ? 'tag-b' : (e.prevNight ? 'tag-p' : 'tag-w');
-    const tagLabel = isOff ? 'Brīvdiena' : (e.prevNight ? 'Nakts (iepr.)' : 'Tūre');
+    let tagClass = 'tag-w';
+    let tagLabel = 'Tūre';
+    if (isOff) { tagClass = 'tag-b'; tagLabel = 'Brīvdiena'; }
+    else if (isDutyCont) { tagClass = 'tag-p'; tagLabel = 'Dežūra →'; }
+    else if (isDuty) { tagClass = 'tag-n'; tagLabel = 'Dežūra'; }
+    else if (e.prevNight) { tagClass = 'tag-p'; tagLabel = 'Nakts (iepr.)'; }
 
     html += `<div class="erow ${isWE ? 'wknd' : ''}">
       <div style="font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: ${isWE ? 'var(--accent)' : 'var(--text-dim)'}; text-align: center;">${d}</div>`;
@@ -1345,12 +1419,14 @@ function renderCalendar() {
     let bodyHtml = '';
 
     if (info && info.type === 'work') {
-      if (info.notFound) cls = 'dc dnf';
+      if (info.dutyContinuation || isDutyContinuationTour(info.tour)) cls = 'dc dp';
+      else if (info.isDuty || isDutyTour(info.tour)) cls = 'dc dn'; // duty uses purple-ish night style
+      else if (info.notFound) cls = 'dc dnf';
       else if (info.overnight || (info.prevDayOvernight && info.startTime !== '?' && crossesMidnight(info.startTime, info.endTime))) cls = 'dc dn';
       else if (info.prevDayOvernight) cls = 'dc dp';
       else cls = 'dc dw';
 
-      label = info.tour || '';
+      label = info.dutyContinuation ? 'D→' : (info.tour || '');
       // Stack start / end times (Claude-like). Prefer start over "beidzas".
       const st = info.startTime && info.startTime !== '?' ? info.startTime : null;
       const et = info.endTime && info.endTime !== '?' ? info.endTime : null;
@@ -1449,6 +1525,15 @@ function renderDayDetail() {
   const dow = getDow(d, state.calData.month, state.calData.year);
   const displayTour = info.type === 'off' ? 'b' : (info.prevDayOvernight ? '/' + info.tour : info.tour);
   const isOff = info.type === 'off';
+  const isDuty = info.isDuty || isDutyTour(info.tour);
+  const isDutyCont = info.dutyContinuation || isDutyContinuationTour(info.tour);
+  let detailTagClass = 'tag-w';
+  let detailTagLabel = 'DARBS';
+  if (isOff) { detailTagClass = 'tag-b'; detailTagLabel = 'BRĪVDIENA'; }
+  else if (isDutyCont) { detailTagClass = 'tag-p'; detailTagLabel = 'DEŽŪRA (pāris)'; }
+  else if (isDuty) { detailTagClass = 'tag-n'; detailTagLabel = 'DEŽŪRA 16h'; }
+  else if (info.prevDayOvernight) { detailTagClass = 'tag-p'; detailTagLabel = 'NAKTS (IEPR.)'; }
+  else if (info.overnight) { detailTagClass = 'tag-n'; detailTagLabel = 'NAKTS'; }
 
   container.style.display = 'block';
   container.innerHTML = `
@@ -1457,8 +1542,8 @@ function renderDayDetail() {
         <div style="font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px;">
           ${d}. ${MONTH_LV[state.calData.month]} — ${DOW_LV[dow]}
         </div>
-        <span class="tg ${isOff ? 'tag-b' : (info.prevDayOvernight ? 'tag-p' : (info.overnight ? 'tag-n' : 'tag-w'))}">
-          ${isOff ? 'BRĪVDIENA' : (info.prevDayOvernight ? 'NAKTS (IEPR.)' : (info.overnight ? 'NAKTS' : 'DARBS'))}
+        <span class="tg ${detailTagClass}">
+          ${detailTagLabel}
         </span>
       </div>
       <div style="display: grid; grid-template-columns: ${isOff ? '1fr' : 'repeat(3, 1fr)'}; gap: 12px; margin-bottom: 12px;">
@@ -1914,9 +1999,13 @@ function saveEdit(day) {
   const prevNight = raw.startsWith('/');
   const cleaned = raw.replace(/^\/\s*/, '').trim();
   const isOff = cleaned.toLowerCase() === 'b' || cleaned === '';
+  const tour = isOff ? 'b' : (isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned));
+  const dutyCont = !isOff && isDutyContinuationTour(tour);
   state.editSchedule[day] = {
-    tour: isOff ? 'b' : normalizeTour(cleaned),
-    prevNight: prevNight
+    tour,
+    prevNight: dutyCont ? false : prevNight,
+    dutyContinuation: dutyCont || undefined,
+    dutyParentDay: dutyCont ? (day - 1) : undefined
   };
   state.editingDay = null;
   renderEditRows();
@@ -2034,25 +2123,50 @@ function updateDayTour(day) {
   const manualStart = startInp ? startInp.value.trim() : '';
   const manualEnd = endInp ? endInp.value.trim() : '';
 
+  const tourNorm = isOff ? 'b' : (isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned));
+  const isDutyCont = !isOff && isDutyContinuationTour(tourNorm);
+
   // Update editSchedule
-  state.editSchedule[day] = { tour: isOff ? 'b' : normalizeTour(cleaned), prevNight };
+  state.editSchedule[day] = {
+    tour: tourNorm,
+    prevNight: isDutyCont ? false : prevNight,
+    dutyContinuation: isDutyCont || undefined,
+    dutyParentDay: isDutyCont ? (day - 1) : undefined
+  };
 
   // Update calendar data for this day
   if (isOff) {
     state.calData.calendar[day] = { type: 'off' };
+  } else if (isDutyCont) {
+    state.calData.calendar[day] = {
+      type: 'work',
+      tour: '-',
+      startTime: '—',
+      endTime: '—',
+      overnight: false,
+      prevDayOvernight: false,
+      baseHours: 0,
+      hours: 0,
+      countedHours: 0,
+      notFound: false,
+      isDuty: true,
+      dutyContinuation: true,
+      dutyParentDay: day - 1
+    };
   } else {
-    const tourNorm = isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned);
+    const duty = isDutyTour(tourNorm);
+    const dutyT = duty ? defaultDutyTimes(tourNorm) : null;
     const dow = getDow(day, state.calData.month, state.calData.year);
     const variants = state.calData.pdfTours ? lookupTour(state.calData.pdfTours, tourNorm) : null;
     const v = getBestVariant(variants, dow);
 
-    // Use manual times if provided, otherwise use PDF times, else duty defaults
-    const st = manualStart || (v ? v.startTime : '?');
-    const et = manualEnd || (v ? v.endTime : '?');
+    // Use manual times if provided, otherwise use PDF times, else duty defaults (05:00–21:00 / 16h)
+    const st = manualStart || (v ? v.startTime : (dutyT ? dutyT.startTime : '?'));
+    const et = manualEnd || (v ? v.endTime : (dutyT ? dutyT.endTime : '?'));
     let hrs = (manualStart && manualEnd)
       ? calcHours(manualStart, manualEnd)
       : (v ? (v.hours || calcHours(v.startTime, v.endTime)) : null);
-    if (hrs == null && isDutyTour(tourNorm)) hrs = defaultDutyHours(tourNorm);
+    if (hrs == null && dutyT) hrs = dutyT.hours;
 
     state.calData.calendar[day] = {
       type: 'work',
@@ -2064,7 +2178,8 @@ function updateDayTour(day) {
       baseHours: hrs,
       hours: hrs,
       countedHours: hrs,
-      notFound: !variants && !manualStart && !isDutyTour(tourNorm)
+      notFound: !variants && !manualStart && !duty,
+      isDuty: duty
     };
   }
 
@@ -2143,13 +2258,16 @@ function copyHermesPrompt() {
 
 1: /70174
 2: b
-3: 7117
+3: D
+4: -
+5: 7117
 ...
 
 Kur:
 - "/" pirms numura = naktsmainis (darbs sākas iepriekšējā dienā)
 - "b" = brīvdiena
-- D/D10 = dežūra (16h/10h)
+- "D" = dežūra 16h (05:00–21:00); "D10" = dežūra 10h
+- "-" = dežūras otrā diena (svītra/apaļā līnija zem nākamā datuma pēc D) — NE aizstāj ar tūres nr.
 - Tūres numuri ir 4-5 ciparu skaitļi (piem., 5001, 5117, 701/74)
 - NERAKSTI neko citu, tikai tabulu. Bez paskaidrojumiem.`;
 
