@@ -912,7 +912,7 @@ function applyOcrSettingsToForm() {
 function gatherOcrSettingsFromForm() {
   return {
     mode: (document.getElementById('ocr-mode') || {}).value || 'off',
-    appKey: ((document.getElementById('ocr-app-key') || {}).value || '').trim(),
+    appKey: (((document.getElementById('ocr-app-key') || {}).value || '').trim().replace(/\s+/g, '')),
     userKey: ((document.getElementById('ocr-user-key') || {}).value || '').trim(),
     baseUrl: ((document.getElementById('ocr-base-url') || {}).value || 'https://openrouter.ai/api/v1').trim(),
     model: ((document.getElementById('ocr-model') || {}).value || 'google/gemini-2.5-flash').trim()
@@ -2729,10 +2729,31 @@ function handleImageUpload(file) {
     formData.append('model', s.model || 'google/gemini-2.5-flash');
   }
 
+  // Trim accidental spaces/newlines from mobile paste of app key
+  if (s.mode === 'worker' && s.appKey) {
+    s.appKey = String(s.appKey).trim().replace(/\s+/g, '');
+  }
+
   fetch(WORKER_URL, { method: 'POST', body: formData, headers })
     .then(resp => {
-      if (!resp.ok) return resp.text().then(t => { throw new Error((t || 'API kļūda ' + resp.status).slice(0, 160)); });
-      return resp.text();
+      return resp.text().then(body => {
+        if (!resp.ok) {
+          const raw = (body || '').trim();
+          let msg = raw || ('API kļūda ' + resp.status);
+          // Map confusing worker/upstream 401s to human Latvian
+          if (resp.status === 401 || /unauthorized/i.test(raw)) {
+            msg = 'Nepareiza Worker atslēga. OCR iestatījumos ielīmē atslēgu no OCR-SETUP un Saglabā.';
+          } else if (resp.status === 502 && /401|unauthorized/i.test(raw)) {
+            msg = 'Servera OCR tokens beidzies (ne tava atslēga). Pasaki Hermes: atjauno OCR tokenu.';
+          } else if (resp.status === 429) {
+            msg = 'Pārāk daudz bilžu (~20/h). Pagaidi vai izmanto manuālo/Gemini ceļu.';
+          } else if (resp.status === 502) {
+            msg = 'OCR serveris īslaicīgi nestrādā. Mēģini vēlreiz vai manuālo ievadi.';
+          }
+          throw new Error(msg.slice(0, 180));
+        }
+        return body;
+      });
     })
     .then(text => {
       geminiInput.value = text.trim();
@@ -2743,7 +2764,7 @@ function handleImageUpload(file) {
       setTimeout(() => { statusEl.textContent = ''; }, 5000);
     })
     .catch(err => {
-      statusEl.textContent = '❌ Kļūda: ' + err.message;
+      statusEl.textContent = '❌ ' + (err && err.message ? err.message : String(err));
       statusEl.style.color = 'var(--red)';
       updateOcrUi();
     });
