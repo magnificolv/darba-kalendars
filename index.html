@@ -776,7 +776,8 @@ function isDutyContinuationTour(tour) {
   return !!(tour && /^[\-–—_]$/.test(String(tour).trim()));
 }
 
-// Fill missing D/D10 hours/times (incl. localStorage from older builds) so totals include duty.
+// Fill missing D/D10 hours/times for display + separate DEŽŪRAS box.
+// IMPORTANT: dežūras stundas NEIESKAITA KOPĀ — tikai atsevišķi (Magnifico rule).
 function hydrateDutyEntry(info) {
   if (!info || info.type !== 'work') return info;
   if (info.dutyContinuation || isDutyContinuationTour(info.tour)) {
@@ -811,11 +812,24 @@ function hydrateDutyEntry(info) {
   return info;
 }
 
+// Hours that go into KOPĀ STUNDAS — EXCLUDES dežūras (D/D10) and duty continuation "-".
 function resolveWorkHours(info) {
   if (!info || info.type !== 'work') return 0;
   hydrateDutyEntry(info);
   if (info.dutyContinuation || isDutyContinuationTour(info.tour)) return 0;
+  if (isDutyTour(info.tour) || info.isDuty) return 0; // dežūra only in DEŽŪRAS box
   if (info.pairRole === 'end' && (info.countedHours === 0 || info.hoursHeldOnPrevDay)) return 0;
+  const h = (info.countedHours != null ? info.countedHours : info.hours);
+  if (h == null || Number.isNaN(Number(h))) return 0;
+  return Number(h);
+}
+
+// Hours only for separate DEŽŪRAS sum (not part of KOPĀ).
+function resolveDutyHours(info) {
+  if (!info || info.type !== 'work') return 0;
+  hydrateDutyEntry(info);
+  if (info.dutyContinuation || isDutyContinuationTour(info.tour)) return 0;
+  if (!isDutyTour(info.tour) && !info.isDuty) return 0;
   const h = (info.countedHours != null ? info.countedHours : info.hours);
   if (h == null || Number.isNaN(Number(h))) return 0;
   return Number(h);
@@ -1527,7 +1541,7 @@ function renderCalendar() {
   }
   gridEl.innerHTML = cells;
 
-  // Stats — dežūras (D/D10) IESKAITA kopējās stundās; "-" turpinājums = 0h
+  // Stats — KOPĀ = tikai tūru stundas; dežūras (D/D10) NEIESKAITA, tās tikai modalā DEŽŪRAS
   const totalWork = Object.values(calendar).filter(d => d.type === 'work' && !d.dutyContinuation && !isDutyContinuationTour(d.tour)).length;
   const totalOff = Object.values(calendar).filter(d => d.type === 'off').length;
   const totalHrs = Object.values(calendar)
@@ -1830,17 +1844,19 @@ function showHoursBreakdown() {
   for (let d = 1; d <= state.calData.daysInMonth; d++) {
     const info = cal[d];
     if (!info || info.type !== 'work') continue;
-    const h = resolveWorkHours(info);
-    if (h == null || h === 0) continue;
-    total += h;
 
-    if (isDutyTour(info.tour) && !info.dutyContinuation) {
-      duty += h;
+    // Separate buckets: KOPĀ (no duty) vs DEŽŪRAS (duty only)
+    const workH = resolveWorkHours(info);
+    const dutyH = resolveDutyHours(info);
+    if (dutyH > 0) {
+      duty += dutyH;
       dutyDays.push(d);
-    } else if (!(info.dutyContinuation || isDutyContinuationTour(info.tour))) {
+    }
+    if (workH > 0) {
+      total += workH;
+
       // Prefer full overnight span if this day is pair start
       if (info.overnight && info.pairRole === 'start' && info.startTime && info.startTime !== '?' ) {
-        // Find end on next day for night calc
         const nxt = cal[d + 1];
         if (nxt && nxt.pairRole === 'end' && nxt.endTime && nxt.endTime !== '?') {
           night += nightOverlap(info.startTime, nxt.endTime);
@@ -1852,11 +1868,12 @@ function showHoursBreakdown() {
       } else if (info.startTime && info.startTime !== '?' && info.endTime && info.endTime !== '?') {
         night += nightOverlap(info.startTime, info.endTime);
       }
-    }
-    // Auto-detect holidays (incl. transfer Mondays)
-    if (isHoliday(d, state.calData.month, state.calData.year)) {
-      holiday += h;
-      holidayDays.push(d);
+
+      // Holiday hours only for counted work (not dežūra)
+      if (isHoliday(d, state.calData.month, state.calData.year)) {
+        holiday += workH;
+        holidayDays.push(d);
+      }
     }
   }
 
