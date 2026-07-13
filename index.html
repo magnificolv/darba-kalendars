@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Darba Kalendārs v3.0 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.5 — Vilciena Konduktors</title>
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   DARBA KALENDĀRS v3.0 — Dark Theme
+   DARBA KALENDĀRS v3.5 — Dark Theme
    Pārņemts no Claude Code, pārbūvēts ar Hermes Agent
    ═══════════════════════════════════════════════════════════════════════════ */
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
@@ -353,6 +353,44 @@ select {
   #stats-bar { gap: 8px !important; }
   .sc > div:last-child { font-size: 24px !important; }
 }
+
+/* Cell content — avoid inline fonts so mobile overrides work */
+.dc-num { font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--text); }
+.dc-dow { font-size: 8px; color: var(--text-muted); }
+.dc-tour { font-size: 14px; font-weight: bold; margin: 4px 0; color: var(--text); }
+.dc-tour.nf { color: var(--accent); }
+.dc-time { font-size: 10px; color: var(--text-dim); }
+.dc-hrs { font-size: 9px; color: var(--text-muted); }
+.dc-pair-note { font-size: 8px; color: var(--purple); letter-spacing: 0.5px; }
+.stat-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; }
+.stat-num { font-size: 28px; font-family: 'Bebas Neue', sans-serif; }
+.stat-num.accent { color: var(--accent); }
+.stat-num.blue { color: var(--blue); }
+.stat-num.green { color: var(--green); }
+.legend { display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; user-select: none; opacity: 0.95; }
+.legend-title { font-size: 9px; color: var(--text-muted); letter-spacing: 1px; width: 100%; margin-bottom: 2px; }
+.settings-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 18px; margin-bottom: 20px;
+}
+.settings-card details summary {
+  cursor: pointer; font-size: 11px; color: var(--accent); letter-spacing: 1px;
+  list-style: none; display: flex; align-items: center; gap: 8px;
+}
+.settings-card details summary::-webkit-details-marker { display: none; }
+.settings-row { display: grid; gap: 8px; margin-top: 12px; }
+.settings-row label { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+.settings-hint { font-size: 10px; color: var(--text-muted); line-height: 1.5; margin-top: 8px; }
+.secret-input {
+  width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 12px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 11px;
+}
+.ocr-mode-public { display: none; }
+.ocr-locked-note {
+  font-size: 10px; color: var(--text-muted); background: #151820; border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px; margin-top: 8px; line-height: 1.55;
+}
+
 </style>
 </head>
 <body>
@@ -385,9 +423,9 @@ select {
     </div>
     <div style="text-align: center; margin-bottom: 32px;">
       <div class="title-lg">
-        IELĪMĒ GRAFIKU<br><span style="color: var(--accent);">VAI IZMANTO HERMES</span>
+        IELĪMĒ GRAFIKU<br><span style="color: var(--accent);">VAI LIETO AI OCR</span>
       </div>
-      <div class="hint" style="margin-top: 12px;">IZVĒLIES VIENU NO DIVIEM CEĻIEM ↓</div>
+      <div class="hint" style="margin-top: 12px;">UNIVERSĀLAIS CEĻŠ = GEMINI COPY/PASTE · AUTO OCR PRASA TAVU KEY ↓</div>
     </div>
 
     <!-- CEĻŠ A: Gemini (universāls) -->
@@ -424,20 +462,69 @@ select {
       </div>
     </div>
 
-    <!-- CEĻŠ A: Tiešā bildes apstrāde -->
+    <!-- CEĻŠ C: Auto OCR (prasa atslēgu — nav atvērts publiski) -->
     <div class="hermes-card" style="margin-bottom: 20px; border-color: var(--green-border);">
-      <h3 style="color: var(--green);">📸 TIEŠĀ APSTRĀDE (JAUNS!)</h3>
-      <p style="font-size: 11px; color: #4ade80; margin-bottom: 12px; line-height: 1.6;">
-        Izvēlies grafika bildi — teksts automātiski parādīsies textarea.
+      <h3 style="color: var(--green);">📸 AUTO OCR (neobligāts)</h3>
+      <p style="font-size: 11px; color: #86efac; margin-bottom: 10px; line-height: 1.6;">
+        Publiski noklusējums <b>neredz</b> Magnifico Nous kredītus. Vajag app worker atslēgu
+        VAI savu OpenRouter / citu OpenAI-compatible API key (BYOK).
+        Citiem: izmanto Gemini ceļu augstāk (copy/paste) — tas ir drošais universālais variants.
       </p>
       <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
         <input type="file" id="image-upload" accept="image/*" style="display:none;">
-        <button class="btn-sm" id="btn-upload" onclick="document.getElementById('image-upload').click()"
+        <button class="btn-sm" id="btn-upload" onclick="startOcrUpload()"
           style="background: var(--green-bg); color: var(--green); border-color: var(--green-border); font-size: 13px; padding: 10px 20px;">
           📸 Izvēlēties grafika bildi
         </button>
         <span id="upload-status" style="font-size: 10px; color: var(--text-dim);"></span>
       </div>
+      <div id="ocr-lock-note" class="ocr-locked-note">
+        🔒 Auto OCR bloķēts, līdz ievadi atslēgu sadaļā <b>⚙️ OCR iestatījumi</b> zemāk.
+        Bez atslēgas lieto Gemini / Hermes copy-paste.
+      </div>
+    </div>
+
+    <!-- OCR settings -->
+    <div class="settings-card">
+      <details id="ocr-settings">
+        <summary>⚙️ OCR IESTATĪJUMI (advanced / sava atslēga)</summary>
+        <div class="settings-row">
+          <label>Režīms</label>
+          <select id="ocr-mode" class="secret-input" onchange="onOcrSettingsChange()">
+            <option value="off">Izslēgts (tikai Gemini/Hermes paste)</option>
+            <option value="worker">Magnifico Worker (privāta app atslēga)</option>
+            <option value="byok">Mana API atslēga (OpenRouter / OpenAI-compatible)</option>
+          </select>
+        </div>
+        <div class="settings-row" id="row-app-key" style="display:none;">
+          <label>Worker atslēga (X-App-Key) — tava privātā</label>
+          <input type="password" id="ocr-app-key" class="secret-input" placeholder="dk_..." autocomplete="off" onchange="onOcrSettingsChange()" oninput="onOcrSettingsChange()">
+        </div>
+        <div id="row-byok" style="display:none;">
+          <div class="settings-row">
+            <label>API Key (glabājas tikai tavā pārlūkā — localStorage)</label>
+            <input type="password" id="ocr-user-key" class="secret-input" placeholder="sk-or-..." autocomplete="off" onchange="onOcrSettingsChange()" oninput="onOcrSettingsChange()">
+          </div>
+          <div class="settings-row">
+            <label>Base URL</label>
+            <input type="text" id="ocr-base-url" class="secret-input" value="https://openrouter.ai/api/v1" onchange="onOcrSettingsChange()">
+          </div>
+          <div class="settings-row">
+            <label>Modelis (vision)</label>
+            <input type="text" id="ocr-model" class="secret-input" value="google/gemini-2.5-flash" onchange="onOcrSettingsChange()">
+          </div>
+        </div>
+        <p class="settings-hint">
+          🔐 Atslēgas <b>netiek</b> commitotas un netiek sūtītas uz GitHub Pages avotu.
+          Worker režīms sūta tikai apstiprinātu app key. BYOK režīmā Worker <b>proxy</b> izmanto <b>tavu</b> atslēgu, ne Magnifico Nous.
+          Rate limit: ~20 bildes/stundā no vienas IP.
+        </p>
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-ghost" type="button" onclick="saveOcrSettings()">💾 Saglabāt iestatījumus</button>
+          <button class="btn-red" type="button" onclick="clearOcrSecrets()">🗑 Dzēst atslēgas no pārlūka</button>
+        </div>
+        <div id="ocr-settings-status" style="font-size:10px; margin-top:8px; color:var(--text-dim);"></div>
+      </details>
     </div>
 
     <div style="margin-bottom: 16px;">
@@ -537,11 +624,13 @@ select {
           <div style="font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 4px; min-width: 180px; text-align: center;" id="cal-month-title"></div>
           <button class="btn-ghost" onclick="changeMonth(1)" title="Nākamais mēnesis" style="font-size: 16px; padding: 4px 10px; color: var(--accent);">▶</button>
         </div>
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-          <span class="tg tag-w">Darba</span>
+        <div class="legend" title="Tikai leģenda — nav filtri">
+          <div class="legend-title">LEĢENDA</div>
+          <span class="tg tag-w">Darbs</span>
           <span class="tg tag-n">Nakts</span>
           <span class="tg tag-p">Nakts (iepr.)</span>
           <span class="tg tag-b">Brīvdiena</span>
+          <span class="tg" style="background:var(--orange-bg); color:var(--orange); border:1px solid var(--orange-border);">Nav PDF</span>
         </div>
       </div>
       <div id="cal-days-header" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 8px;"></div>
@@ -596,6 +685,153 @@ let state = {
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
+
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function isDutyTour(tour) {
+  return !!(tour && /^D10?$/i.test(String(tour).trim()));
+}
+
+function defaultDutyHours(tour) {
+  if (!tour) return null;
+  const t = String(tour).trim().toUpperCase();
+  if (t === 'D10') return 10.0;
+  if (t === 'D') return 16.0;
+  return null;
+}
+
+const OCR_STORAGE_KEY = 'darba-kalendars-ocr-v1';
+const WORKER_URL = 'https://darba-grafiks-worker.magnificox.workers.dev';
+
+function loadOcrSettings() {
+  try {
+    const raw = localStorage.getItem(OCR_STORAGE_KEY);
+    if (!raw) return { mode: 'off', appKey: '', userKey: '', baseUrl: 'https://openrouter.ai/api/v1', model: 'google/gemini-2.5-flash' };
+    const d = JSON.parse(raw);
+    return {
+      mode: d.mode || 'off',
+      appKey: d.appKey || '',
+      userKey: d.userKey || '',
+      baseUrl: d.baseUrl || 'https://openrouter.ai/api/v1',
+      model: d.model || 'google/gemini-2.5-flash'
+    };
+  } catch (e) {
+    return { mode: 'off', appKey: '', userKey: '', baseUrl: 'https://openrouter.ai/api/v1', model: 'google/gemini-2.5-flash' };
+  }
+}
+
+function applyOcrSettingsToForm() {
+  const s = loadOcrSettings();
+  const modeEl = document.getElementById('ocr-mode');
+  if (!modeEl) return;
+  modeEl.value = s.mode || 'off';
+  const appKey = document.getElementById('ocr-app-key');
+  const userKey = document.getElementById('ocr-user-key');
+  const baseUrl = document.getElementById('ocr-base-url');
+  const model = document.getElementById('ocr-model');
+  if (appKey) appKey.value = s.appKey || '';
+  if (userKey) userKey.value = s.userKey || '';
+  if (baseUrl) baseUrl.value = s.baseUrl || 'https://openrouter.ai/api/v1';
+  if (model) model.value = s.model || 'google/gemini-2.5-flash';
+  updateOcrUi();
+}
+
+function gatherOcrSettingsFromForm() {
+  return {
+    mode: (document.getElementById('ocr-mode') || {}).value || 'off',
+    appKey: ((document.getElementById('ocr-app-key') || {}).value || '').trim(),
+    userKey: ((document.getElementById('ocr-user-key') || {}).value || '').trim(),
+    baseUrl: ((document.getElementById('ocr-base-url') || {}).value || 'https://openrouter.ai/api/v1').trim(),
+    model: ((document.getElementById('ocr-model') || {}).value || 'google/gemini-2.5-flash').trim()
+  };
+}
+
+function saveOcrSettings() {
+  const s = gatherOcrSettingsFromForm();
+  try {
+    localStorage.setItem(OCR_STORAGE_KEY, JSON.stringify(s));
+    const st = document.getElementById('ocr-settings-status');
+    if (st) { st.textContent = '✓ Saglabāts pārlūkā (localStorage)'; st.style.color = 'var(--green)'; }
+    updateOcrUi();
+  } catch (e) {
+    const st = document.getElementById('ocr-settings-status');
+    if (st) { st.textContent = 'Neizdevās saglabāt: ' + e.message; st.style.color = 'var(--red)'; }
+  }
+}
+
+function clearOcrSecrets() {
+  if (!confirm('Dzēst OCR atslēgas no šī pārlūka?')) return;
+  try { localStorage.removeItem(OCR_STORAGE_KEY); } catch (e) {}
+  applyOcrSettingsToForm();
+  const st = document.getElementById('ocr-settings-status');
+  if (st) { st.textContent = 'Atslēgas izdzēstas'; st.style.color = 'var(--text-dim)'; }
+}
+
+function onOcrSettingsChange() {
+  updateOcrUi();
+}
+
+function ocrIsConfigured(s) {
+  if (!s || s.mode === 'off') return false;
+  if (s.mode === 'worker') return !!s.appKey;
+  if (s.mode === 'byok') return !!s.userKey;
+  return false;
+}
+
+function updateOcrUi() {
+  const s = gatherOcrSettingsFromForm();
+  // unification: if user typed keys but mode still off, keep display accurate using stored form
+  const rowApp = document.getElementById('row-app-key');
+  const rowByok = document.getElementById('row-byok');
+  if (rowApp) rowApp.style.display = s.mode === 'worker' ? 'grid' : 'none';
+  if (rowByok) rowByok.style.display = s.mode === 'byok' ? 'block' : 'none';
+  const note = document.getElementById('ocr-lock-note');
+  const btn = document.getElementById('btn-upload');
+  const ok = ocrIsConfigured(s);
+  if (note) {
+    if (ok) {
+      note.style.display = 'none';
+    } else {
+      note.style.display = 'block';
+      if (s.mode === 'worker' && !s.appKey) note.innerHTML = '🔒 Worker režīms: ievadi <b>Worker atslēgu</b> un saglabā.';
+      else if (s.mode === 'byok' && !s.userKey) note.innerHTML = '🔒 BYOK: ievadi savu API key un saglabā.';
+      else note.innerHTML = '🔒 Auto OCR bloķēts. Universālais ceļš = Gemini/Hermes copy-paste. Lai ieslēgtu auto — ⚙️ OCR iestatījumi.';
+    }
+  }
+  if (btn) {
+    btn.disabled = !ok;
+    btn.style.opacity = ok ? '1' : '0.55';
+  }
+}
+
+function startOcrUpload() {
+  const s = loadOcrSettings();
+  // prefer form if open
+  const formS = gatherOcrSettingsFromForm();
+  const use = formS.mode !== 'off' ? formS : s;
+  if (!ocrIsConfigured(use)) {
+    const statusEl = document.getElementById('upload-status');
+    if (statusEl) {
+      statusEl.textContent = 'Vispirms ievadi OCR atslēgu iestatījumos';
+      statusEl.style.color = 'var(--red)';
+    }
+    const det = document.getElementById('ocr-settings');
+    if (det) det.open = true;
+    return;
+  }
+  // save latest form values
+  try { localStorage.setItem(OCR_STORAGE_KEY, JSON.stringify(use)); } catch (e) {}
+  document.getElementById('image-upload').click();
+}
+
 
 function normalizeTour(raw) {
   if (!raw) return raw;
@@ -859,16 +1095,45 @@ async function parseTourPdfs(files) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function recalcOvernight(calendar, dim) {
+  // Reset flags; preserve baseHours (true local window hours)
   for (let d = 1; d <= dim; d++) {
-    if (calendar[d] && calendar[d].type === 'work') calendar[d].overnight = false;
+    const c = calendar[d];
+    if (!c || c.type !== 'work') continue;
+    c.overnight = false;
+    c.pairRole = null; // 'start' | 'end' of overnight pair
+    if (c.baseHours == null && c.hours != null) c.baseHours = c.hours;
+    // default countedHours = baseHours (or hours)
+    if (c.baseHours != null) c.countedHours = c.baseHours;
+    else if (c.hours != null) { c.baseHours = c.hours; c.countedHours = c.hours; }
   }
   for (let d = 1; d < dim; d++) {
     const a = calendar[d];
     const b = calendar[d + 1];
     if (a && b && a.type === 'work' && b.type === 'work'
         && b.prevDayOvernight && a.tour === b.tour) {
-      calendar[d].overnight = true;
-      calendar[d + 1].hours = null;
+      // Single contiguous overnight shift: count hours on the start day only
+      a.overnight = true;
+      a.pairRole = 'start';
+      b.pairRole = 'end';
+      // Sum both local windows into start day to avoid double-count and avoid total loss
+      const aH = a.baseHours != null ? a.baseHours : (a.hours || 0);
+      const bH = b.baseHours != null ? b.baseHours : (b.hours || 0);
+      // If both sides have times and look like one continuous span, prefer single calcHours if possible
+      if (a.startTime && a.startTime !== '?' && b.endTime && b.endTime !== '?' && crossesMidnight(a.startTime, b.endTime)) {
+        const full = calcHours(a.startTime, b.endTime);
+        a.hours = full;
+        a.countedHours = full;
+        b.hours = null;
+        b.countedHours = 0;
+        b.hoursHeldOnPrevDay = true;
+      } else {
+        // Fallback: count A's hours, zero B to avoid double-count when PDF lists full on both
+        a.hours = aH;
+        a.countedHours = aH;
+        b.hours = null;
+        b.countedHours = 0;
+        b.hoursHeldOnPrevDay = true;
+      }
     }
   }
 }
@@ -903,15 +1168,23 @@ async function buildCalendar() {
       const v = getBestVariant(variants, dow);
       const prevN = entry.prevNight === true;
 
+      let st = v ? v.startTime : '?';
+      let et = v ? v.endTime : '?';
+      let hrs = v ? (v.hours || calcHours(v.startTime, v.endTime)) : null;
+      if (hrs == null && isDutyTour(entry.tour)) {
+        hrs = defaultDutyHours(entry.tour);
+      }
       calendar[d] = {
         type: 'work',
         tour: entry.tour,
-        startTime: v ? v.startTime : '?',
-        endTime: v ? v.endTime : '?',
+        startTime: st,
+        endTime: et,
         overnight: false,
         prevDayOvernight: prevN,
-        hours: v ? (v.hours || calcHours(v.startTime, v.endTime)) : null,
-        notFound: !variants
+        baseHours: hrs,
+        hours: hrs,
+        countedHours: hrs,
+        notFound: !variants && !isDutyTour(entry.tour)
       };
     }
 
@@ -981,7 +1254,7 @@ function renderEditRows() {
         onblur="saveEdit(${d})" autofocus>`;
     } else {
       html += `<div style="cursor: pointer; font-size: 12px; color: ${isOff ? 'var(--text-muted)' : 'var(--text)'};"
-        onclick="startEdit(${d}, '${displayTour}')">${displayTour}</div>`;
+        onclick="startEdit(${d}, '${escapeHtml(displayTour).replace(/'/g, '&#39;')}')">${escapeHtml(displayTour)}</div>`;
     }
 
     html += `<span class="tg ${tagClass}">${tagLabel}</span>
@@ -1038,14 +1311,25 @@ function renderCalendar() {
     const dow = getDow(d, state.metaMonth || month, year || state.metaYear);
     const dayName = DOW_LV[dow];
 
+    const safeLabel = label ? escapeHtml(label) : '';
+    const safeTime = timeStr ? escapeHtml(timeStr) : '';
+    const shownHours = info && info.type === 'work'
+      ? (info.countedHours != null ? info.countedHours : info.hours)
+      : null;
+    const pairNote = (info && info.hoursHeldOnPrevDay)
+      ? '<div class="dc-pair-note">stundas → iepr. dienā</div>'
+      : (info && info.pairRole === 'start' && info.overnight)
+        ? '<div class="dc-pair-note">nakts pāris</div>'
+        : '';
     cells += `<div class="${cls}" onclick="selectDay(${d})">
       <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <span style="font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--text);">${d}</span>
-        <span style="font-size: 8px; color: var(--text-muted);">${dayName.slice(0,2)}</span>
+        <span class="dc-num">${d}</span>
+        <span class="dc-dow">${escapeHtml(dayName.slice(0,2))}</span>
       </div>
-      ${label ? `<div style="font-size: 14px; font-weight: bold; margin: 4px 0; color: ${info.notFound ? 'var(--accent)' : 'var(--text)'};">${label}</div>` : ''}
-      ${timeStr ? `<div style="font-size: 10px; color: var(--text-dim);">${timeStr}</div>` : ''}
-      ${info && info.hours ? `<div style="font-size: 9px; color: var(--text-muted);">${info.hours.toFixed(1)}h</div>` : ''}
+      ${safeLabel ? `<div class="dc-tour${info.notFound ? ' nf' : ''}">${safeLabel}</div>` : ''}
+      ${safeTime ? `<div class="dc-time">${safeTime}</div>` : ''}
+      ${shownHours != null && shownHours > 0 ? `<div class="dc-hrs">${Number(shownHours).toFixed(1)}h</div>` : ''}
+      ${pairNote}
     </div>`;
   }
   gridEl.innerHTML = cells;
@@ -1054,22 +1338,25 @@ function renderCalendar() {
   const totalWork = Object.values(calendar).filter(d => d.type === 'work').length;
   const totalOff = Object.values(calendar).filter(d => d.type === 'off').length;
   const totalHrs = Object.values(calendar)
-    .filter(d => d.type === 'work' && d.hours)
-    .reduce((s, d) => s + d.hours, 0).toFixed(1);
+    .filter(d => d.type === 'work')
+    .reduce((s, d) => {
+      const h = (d.countedHours != null ? d.countedHours : d.hours);
+      return s + (h || 0);
+    }, 0).toFixed(1);
   const notFound = Object.values(calendar).filter(d => d.notFound).length;
 
   document.getElementById('stats-bar').innerHTML = `
     <div class="sc" style="text-align: center;">
-      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">DARBA DIENAS</div>
-      <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--accent);">${totalWork}</div>
+      <div class="stat-label">DARBA DIENAS</div>
+      <div class="stat-num accent">${totalWork}</div>
     </div>
     <div class="sc" style="text-align: center;">
-      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">BRĪVDIENAS</div>
-      <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--blue);">${totalOff}</div>
+      <div class="stat-label">BRĪVDIENAS</div>
+      <div class="stat-num blue">${totalOff}</div>
     </div>
     <div class="sc" style="text-align: center; cursor: pointer;" onclick="showHoursBreakdown()" title="Klikšķini lai redzētu sadalījumu">
-      <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">KOPĀ STUNDAS ▾</div>
-      <div style="font-size: 28px; font-family: 'Bebas Neue', sans-serif; color: var(--green);">${totalHrs}h</div>
+      <div class="stat-label">KOPĀ STUNDAS ▾</div>
+      <div class="stat-num green">${totalHrs}h</div>
     </div>`;
 
   renderDayDetail();
@@ -1110,25 +1397,25 @@ function renderDayDetail() {
           <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">TŪRE</div>
           ${isOff
             ? `<div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif; color: var(--red);">BRĪVDIENA</div>`
-            : `<div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--accent);">${info.tour}</div>`}
+            : `<div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--accent);">${escapeHtml(info.tour)}</div>`}
         </div>
         ${!isOff ? `
         <div class="sc">
           <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">LAIKS</div>
-          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif;">${info.startTime} → ${info.endTime}</div>
+          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif;">${escapeHtml(info.startTime)} → ${escapeHtml(info.endTime)}</div>
         </div>
         <div class="sc">
           <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">STUNDAS</div>
-          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif; color: var(--green);">${info.hours ? info.hours.toFixed(1) + 'h' : '?'}</div>
+          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif; color: var(--green);">${(info.countedHours != null ? info.countedHours : info.hours) != null ? Number(info.countedHours != null ? info.countedHours : info.hours).toFixed(1) + 'h' : '?'}</div>
         </div>` : ''}
       </div>
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <input type="text" id="edit-tour-inp" class="edit-inp" style="flex: 2; min-width: 100px;" value="${displayTour}"
+        <input type="text" id="edit-tour-inp" class="edit-inp" style="flex: 2; min-width: 100px;" value="${escapeHtml(displayTour)}"
           placeholder="Tūre (piem., 704/59, /71169, b)">
         <span style="font-size: 10px; color: var(--text-dim);">no</span>
-        <input type="text" id="edit-start-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${info.startTime || ''}" placeholder="HH:MM">
+        <input type="text" id="edit-start-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.startTime || '')}" placeholder="HH:MM">
         <span style="font-size: 10px; color: var(--text-dim);">līdz</span>
-        <input type="text" id="edit-end-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${info.endTime || ''}" placeholder="HH:MM">
+        <input type="text" id="edit-end-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.endTime || '')}" placeholder="HH:MM">
         <button class="btn-sm" onclick="updateDayTour(${d})">💾 Saglabāt</button>
       </div>
       ${info.notFound ? '<div style="margin-top: 8px; font-size: 10px; color: var(--accent);">⚠ Tūre nav atrasta PDF katalogā</div>' : ''}
@@ -1171,14 +1458,44 @@ function goToEdit() {
 
 function deleteMonth() {
   if (!state.calData) return;
-  if (!confirm('Vai tiešām dzēst ' + MONTH_LV[state.calData.month] + ' ' + state.calData.year + '?')) return;
-  state.calData = null;
-  state.pdfTours = null;
-  state.editSchedule = {};
-  state.metaMonth = '';
-  state.metaYear = new Date().getFullYear();
-  clearStorage();
-  setStep(STEPS.PASTE);
+  const mName = MONTH_LV[state.calData.month] + ' ' + state.calData.year;
+  if (!confirm('Vai tiešām dzēst tikai ' + mName + '?\n\nCiti saglabātie mēneši paliks.')) return;
+
+  if (!state._monthsData) state._monthsData = {};
+  const key = state.calData.year + '-' + String(state.calData.month).padStart(2, '0');
+  delete state._monthsData[key];
+
+  // Switch to latest remaining month or empty paste
+  const keys = Object.keys(state._monthsData).sort();
+  if (keys.length > 0) {
+    const latest = keys[keys.length - 1];
+    const [y, m] = latest.split('-').map(Number);
+    const saved = state._monthsData[latest];
+    state.calData = {
+      month: m, year: y,
+      daysInMonth: daysInMonth(m, y),
+      calendar: saved.calendar || {},
+      pdfTours: saved.pdfTours || {}
+    };
+    state.editSchedule = saved.editSchedule || {};
+    state.pdfTours = saved.pdfTours || null;
+    state.metaMonth = String(m);
+    state.metaYear = y;
+    state.selectedDay = null;
+    saveState();
+    setStep(STEPS.CALENDAR);
+    renderCalendar();
+  } else {
+    state.calData = null;
+    state.pdfTours = null;
+    state.editSchedule = {};
+    state.metaMonth = '';
+    state.metaYear = new Date().getFullYear();
+    state.selectedDay = null;
+    // Only clear storage if nothing left — NOT a full nuclear wipe while other months exist
+    clearStorage();
+    setStep(STEPS.PASTE);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1191,24 +1508,44 @@ function calcNightHours() {
   let night = 0;
   for (let d = 1; d <= state.calData.daysInMonth; d++) {
     const info = cal[d];
-    if (!info || info.type !== 'work' || info.startTime === '?' || info.endTime === '?') continue;
+    if (!info || info.type !== 'work' || isDutyTour(info.tour)) continue;
+    if (info.pairRole === 'end') continue;
+    if (info.overnight && info.pairRole === 'start') {
+      const nxt = cal[d + 1];
+      if (info.startTime && info.startTime !== '?' && nxt && nxt.endTime && nxt.endTime !== '?') {
+        night += nightOverlap(info.startTime, nxt.endTime);
+        continue;
+      }
+    }
+    if (!info.startTime || info.startTime === '?' || !info.endTime || info.endTime === '?') continue;
     night += nightOverlap(info.startTime, info.endTime);
   }
   return night.toFixed(1);
 }
 
 function nightOverlap(start, end) {
-  // Calculate how many hours of a shift fall between 22:00 and 06:00
+  // Exact minutes of a shift that fall in night window 22:00–06:00
+  if (!start || !end || start === '?' || end === '?') return 0;
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);
+  if ([sh, sm, eh, em].some(n => Number.isNaN(n))) return 0;
   let startMin = sh * 60 + sm;
   let endMin = eh * 60 + em;
   if (endMin <= startMin) endMin += 1440; // crosses midnight
 
+  // Night windows over two calendar days relative to shift start:
+  // [22:00, 24:00) and [24:00, 30:00) (=06:00 next day), then again next cycle if needed
+  function overlapRange(a0, a1, b0, b1) {
+    const s = Math.max(a0, b0);
+    const e = Math.min(a1, b1);
+    return Math.max(0, e - s);
+  }
   let nightMin = 0;
-  for (let m = startMin; m < endMin; m += 30) { // check in 30-min blocks
-    const hour = Math.floor((m % 1440) / 60);
-    if (hour >= 22 || hour < 6) nightMin += 30;
+  // cover possible windows from day-1 to day+1 relative to start
+  for (let day = -1; day <= 2; day++) {
+    const base = day * 1440;
+    nightMin += overlapRange(startMin, endMin, base + 22 * 60, base + 24 * 60);
+    nightMin += overlapRange(startMin, endMin, base + 0, base + 6 * 60);
   }
   return nightMin / 60;
 }
@@ -1260,6 +1597,21 @@ function getHolidays(year) {
     { m: 12, d: 31 }, // Vecgada diena
   ];
 
+  // Transfer units: if fixed holiday falls on Sat/Sun, next Monday is holiday (LV practice for 4.maijs & 18.nov)
+  function addTransfer(m, d) {
+    const dt = new Date(year, m - 1, d);
+    const dow = dt.getDay(); // 0=Sun
+    if (dow === 6) { // Saturday → Monday
+      const t = new Date(dt); t.setDate(t.getDate() + 2);
+      holidays.push({ m: t.getMonth() + 1, d: t.getDate(), transfer: true });
+    } else if (dow === 0) { // Sunday → Monday
+      const t = new Date(dt); t.setDate(t.getDate() + 1);
+      holidays.push({ m: t.getMonth() + 1, d: t.getDate(), transfer: true });
+    }
+  }
+  addTransfer(5, 4);   // Neatkarības deklarācija
+  addTransfer(11, 18); // Proklamēšana
+
   // Return as Set of "M-D" strings
   return new Set(holidays.map(h => h.m + '-' + h.d));
 }
@@ -1279,20 +1631,32 @@ function showHoursBreakdown() {
   for (let d = 1; d <= state.calData.daysInMonth; d++) {
     const info = cal[d];
     if (!info || info.type !== 'work') continue;
-    if (!info.hours) continue;
-    total += info.hours;
+    const h = (info.countedHours != null ? info.countedHours : info.hours);
+    if (h == null || h === 0) continue;
+    total += h;
 
-    if (info.tour && /^D10?$/i.test(info.tour)) {
-      duty += info.hours;
+    if (isDutyTour(info.tour)) {
+      duty += h;
       dutyDays.push(d);
     } else {
-      if (info.startTime && info.startTime !== '?' && info.endTime && info.endTime !== '?') {
+      // Prefer full overnight span if this day is pair start
+      if (info.overnight && info.pairRole === 'start' && info.startTime && info.startTime !== '?' ) {
+        // Find end on next day for night calc
+        const nxt = cal[d + 1];
+        if (nxt && nxt.pairRole === 'end' && nxt.endTime && nxt.endTime !== '?') {
+          night += nightOverlap(info.startTime, nxt.endTime);
+        } else if (info.endTime && info.endTime !== '?') {
+          night += nightOverlap(info.startTime, info.endTime);
+        }
+      } else if (info.pairRole === 'end') {
+        // already counted on start day
+      } else if (info.startTime && info.startTime !== '?' && info.endTime && info.endTime !== '?') {
         night += nightOverlap(info.startTime, info.endTime);
       }
     }
-    // Auto-detect holidays
+    // Auto-detect holidays (incl. transfer Mondays)
     if (isHoliday(d, state.calData.month, state.calData.year)) {
-      holiday += info.hours;
+      holiday += h;
       holidayDays.push(d);
     }
   }
@@ -1431,6 +1795,8 @@ function changeMonth(delta) {
 }
 
 function reset() {
+  if (!confirm('Dzēst VISUS saglabātos mēnešus un sākt no jauna?\n\nŠo nevar atsaukt.')) return;
+  if (!confirm('Pēdējais apstiprinājums: tiešām izdzēst VISU localStorage kalendāru?')) return;
   state = {
     step: STEPS.PASTE,
     geminiText: '',
@@ -1443,7 +1809,8 @@ function reset() {
     error: null,
     selectedDay: null,
     editingDay: null,
-    pdfTours: null
+    pdfTours: null,
+    _monthsData: {}
   };
   document.getElementById('gemini-input').value = '';
   document.getElementById('paste-success').style.display = 'none';
@@ -1506,7 +1873,7 @@ function renderPdfList() {
     <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 14px;">📄</span>
-        <span style="font-size: 11px;">${f.name}</span>
+        <span style="font-size: 11px;">${escapeHtml(f.name)}</span>
         <span style="font-size: 9px; color: var(--text-muted);">${(f.size / 1024).toFixed(0)} KB</span>
       </div>
       <button class="btn-red" onclick="removePdf(${i})">✕</button>
@@ -1605,24 +1972,30 @@ function updateDayTour(day) {
   if (isOff) {
     state.calData.calendar[day] = { type: 'off' };
   } else {
+    const tourNorm = isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned);
     const dow = getDow(day, state.calData.month, state.calData.year);
-    const variants = state.calData.pdfTours ? lookupTour(state.calData.pdfTours, normalizeTour(cleaned)) : null;
+    const variants = state.calData.pdfTours ? lookupTour(state.calData.pdfTours, tourNorm) : null;
     const v = getBestVariant(variants, dow);
 
-    // Use manual times if provided, otherwise use PDF times
+    // Use manual times if provided, otherwise use PDF times, else duty defaults
     const st = manualStart || (v ? v.startTime : '?');
     const et = manualEnd || (v ? v.endTime : '?');
-    const hrs = (manualStart && manualEnd) ? calcHours(manualStart, manualEnd) : (v ? (v.hours || calcHours(v.startTime, v.endTime)) : null);
+    let hrs = (manualStart && manualEnd)
+      ? calcHours(manualStart, manualEnd)
+      : (v ? (v.hours || calcHours(v.startTime, v.endTime)) : null);
+    if (hrs == null && isDutyTour(tourNorm)) hrs = defaultDutyHours(tourNorm);
 
     state.calData.calendar[day] = {
       type: 'work',
-      tour: normalizeTour(cleaned),
+      tour: tourNorm,
       startTime: st,
       endTime: et,
       overnight: false,
       prevDayOvernight: prevNight,
+      baseHours: hrs,
       hours: hrs,
-      notFound: !variants && !manualStart
+      countedHours: hrs,
+      notFound: !variants && !manualStart && !isDutyTour(tourNorm)
     };
   }
 
@@ -1755,15 +2128,19 @@ function showHermesCopied() {
 // 📸 IMAGE UPLOAD — Tiešā grafika bildes apstrāde caur Cloudflare Worker
 // ═══════════════════════════════════════════════════════════════════════════
 
-const WORKER_URL = 'https://darba-grafiks-worker.magnificox.workers.dev';
-
 function handleImageUpload(file) {
   const statusEl = document.getElementById('upload-status');
   const btnEl = document.getElementById('btn-upload');
   const geminiInput = document.getElementById('gemini-input');
+  const s = loadOcrSettings();
 
   if (!file || !file.type.startsWith('image/')) {
     statusEl.textContent = '❌ Nepareizs faila tips';
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+  if (!ocrIsConfigured(s)) {
+    statusEl.textContent = '❌ Nav OCR atslēgas — izmanto Gemini copy/paste';
     statusEl.style.color = 'var(--red)';
     return;
   }
@@ -1774,10 +2151,19 @@ function handleImageUpload(file) {
 
   const formData = new FormData();
   formData.append('image', file);
+  const headers = {};
+  if (s.mode === 'worker') {
+    formData.append('appKey', s.appKey);
+    headers['X-App-Key'] = s.appKey;
+  } else if (s.mode === 'byok') {
+    formData.append('userApiKey', s.userKey);
+    formData.append('baseUrl', s.baseUrl || 'https://openrouter.ai/api/v1');
+    formData.append('model', s.model || 'google/gemini-2.5-flash');
+  }
 
-  fetch(WORKER_URL, { method: 'POST', body: formData })
+  fetch(WORKER_URL, { method: 'POST', body: formData, headers })
     .then(resp => {
-      if (!resp.ok) return resp.text().then(t => { throw new Error(t.slice(0, 100) || 'API kļūda ' + resp.status); });
+      if (!resp.ok) return resp.text().then(t => { throw new Error((t || 'API kļūda ' + resp.status).slice(0, 160)); });
       return resp.text();
     })
     .then(text => {
@@ -1785,13 +2171,13 @@ function handleImageUpload(file) {
       geminiInput.dispatchEvent(new Event('input', { bubbles: true }));
       statusEl.textContent = '✅ Gatavs! Teksts ielādēts zemāk.';
       statusEl.style.color = 'var(--green)';
-      btnEl.disabled = false;
+      updateOcrUi();
       setTimeout(() => { statusEl.textContent = ''; }, 5000);
     })
     .catch(err => {
       statusEl.textContent = '❌ Kļūda: ' + err.message;
       statusEl.style.color = 'var(--red)';
-      btnEl.disabled = false;
+      updateOcrUi();
     });
 }
 
@@ -1881,6 +2267,10 @@ document.addEventListener('DOMContentLoaded', () => {
     state.metaYear = parseInt(this.value) || new Date().getFullYear();
     if (state.step === STEPS.EDIT) renderEditRows();
   });
+
+  // OCR settings form
+  applyOcrSettingsToForm();
+  updateOcrUi();
 
   // Try loading saved state
   if (!loadState()) {

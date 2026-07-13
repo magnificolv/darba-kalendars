@@ -1,94 +1,64 @@
-# Darba Kalendārs v3.0 — Vilciena Konduktora Grafika Pārvaldnieks
+# Darba Kalendārs v3.5 — Vilciena Konduktora Grafika Pārvaldnieks
 
-> Pārņemts no Claude Code, pārbūvēts ar Hermes Agent  
-> 2026. gada 7. jūlijs
+> Pārņemts no Claude Code, pārbūvēts un hārdenēts ar Hermes Agent  
+> Atjaunināts: 2026-07-13 (v3.5 security + math + data-safety)
 
-## 📖 Kas tas ir?
+## Kas tas ir?
 
 Pašpietiekama HTML lietotne vilciena konduktora darba grafika pārvaldībai.  
-Atver `index.html` jebkurā pārlūkā — nav nepieciešams serveris, nav jāinstalē nekas.
+Atver `index.html` vai https://magnificolv.github.io/darba-kalendars/
 
-## 🔄 Darba Plūsma
+## Ievades ceļi
 
-### 1. Iegūsti grafika tekstu
-Ir divi ceļi:
+### 1) Universālais (visiem) — Gemini / jebkurš LLM copy-paste
+1. Nokopē Gemini promptu no app
+2. Iedod grafika bildi Gemini (vai citam modelim)
+3. Ielīmē tabulu appā → Tālāk
 
-**A) 🤖 Hermes Auto (ieteicams Magnifico)**
-- Noklikšķini "Kopēt Hermes Promptu"
-- Ielīmē to Hermes čatā + pievieno grafika bildi
-- Hermes atgriezīs strukturētu tekstu
-- Ielīmē to atpakaļ lietotnē
+### 2) Hermes prompt
+1. "Kopēt Hermes Promptu"
+2. Ielīmē Hermes čatā + bilde
+3. Atpakaļ appā copy/paste
 
-**B) 📋 Gemini (universāls — vari dot kolēģiem)**
-- Iekopē Gemini promptu (redzams lietotnē)
-- Iedod to Gemini kopā ar bildi
-- Ielīmē Gemini atbildi lietotnē
+### 3) Auto OCR (advanced)
+- **Noklusējums: OFF**
+- Magnifico: Worker režīms ar privāto **Worker atslēgu** (X-App-Key)
+- Citi advancēti: **BYOK** — sava OpenRouter / OpenAI-compatible vision atslēga  
+  Worker tad *proxy* lieto **tavu** atslēgu, ne Magnifico Nous kontu.
+- Rate limit: ~20 bildes/stundā no IP
 
-### 2. Pārbaudi un rediģē
-- Pārskati visas dienas, izlabo ja nepieciešams
-- Klikšķini uz tūres lai rediģētu
-- Izmanto 🌙 pogu lai atzīmētu nakts maiņas
-- Pievieno tūru PDF katalogus (tos, kur ir laiki)
+> Bez atslēgas Auto OCR poga ir bloķēta. Nav atvērta publiska "ēd Magnifico kredītus" cauruma.
 
-### 3. Izveido kalendāru
-- Nospied "Veidot kalendāru"
-- pdf.js automātiski izlasīs tūru laikus no PDF
-- Kalendārs parādīs visas dienas ar laikiem
+## Galvenās v3.5 izmaiņas
+- `Dzēst mēnesi` dzēš **tikai** aktīvo mēnesi (vairs ne visu localStorage)
+- Full reset = divi apstiprinājumi
+- `escapeHtml` pret XSS
+- Nakts stundas ar **minūšu precizitāti** (ne 30 min lēcieniem)
+- Dežūras D=16h, D10=10h default
+- Overnight pāris: stundas netiek dubultskatītas; UI rāda "stundas → iepr. dienā"
+- LV svētku **pārcelšana** (4.maijs / 18.nov → pirmdiena, ja Sest./Sv.)
+- Leģenda (ne fake filtri)
+- CSS klases šūnām (vieglāks mobile)
+- Worker: APP_KEY, CORS allowlist, IP rate limit, BYOK
 
-### 4. Skaties un analizē
-- Mēneša pārskats ar krāsu kodējumu
-- Statistika: darba dienas, brīvdienas, kopējās stundas
-- Klikšķini uz dienas lai redzētu detaļas
-- Kalendārs saglabājas automātiski (LocalStorage)
+## Krāsu kodējums
 
-## 🎨 Krāsu Kodējums
+| Krāsa | Nozīme |
+|-------|--------|
+| Zils | Darbs |
+| Violets | Nakts (šķērso pusnakti) |
+| Zaļš | Nakts (sākās iepr. dienā) |
+| Tumšs | Brīvdiena |
+| Oranžs | Tūre nav PDF |
 
-| Krāsa | Apraksts |
-|-------|----------|
-| 🔵 Zils | Parasta darba diena |
-| 🟣 Violets | Nakts maiņa (šķērso pusnakti) |
-| 🟢 Zaļš | Nakts maiņa (sākās iepriekšējā dienā) |
-| ⚫ Pelēks | Brīvdiena |
-| 🟠 Oranžs | Tūre nav atrasta PDF katalogā |
+## Tech
+- HTML + CSS + vanilla JS + pdf.js
+- LocalStorage multi-month (`darba-kalendars-v3`)
+- OCR settings localStorage atsevišķi (`darba-kalendars-ocr-v1`)
+- Cloudflare Worker: `darba-grafiks-worker.magnificox.workers.dev`
 
-## 📁 Failu Struktūra
-
-```
-darba-kalendars/
-├── index.html        ← Galvenā lietotne (viss vienā failā)
-├── README.md         ← Šis fails
-└── archive/          ← Vecās versijas (no Claude Code laikmeta)
-    ├── grafiks.html          (v1 prototips)
-    ├── grafiks2.html         (v2 — latviešu mēneši)
-    ├── grafiks3.html         (v3 — vairāki datumi)
-    ├── darba_kalendars.jsx   (React SPA)
-    ├── darba_kalendars_1.jsx (identisks)
-    ├── darba_kalendars (1).jsx (variācija)
-    └── vilciena_kalendars.jsx (v2.1 — pēdējā React versija)
-```
-
-## 🔧 Tehniskā Informācija
-
-- **Tech stack**: HTML + CSS + vanilla JavaScript + pdf.js
-- **PDF apstrāde**: Klienta pusē ar pdf.js (nav nepieciešams API)
-- **Datu glabāšana**: LocalStorage (pārlūkā)
-- **Atkarības**: Tikai Google Fonts un pdf.js CDN (darbojas arī bezsaistē pēc pirmās ielādes)
-
-## 📝 Versiju Vēsture
-
-| Versija | Datums | Izmaiņas |
-|---------|--------|----------|
-| v1-v3 | 2025 | html prototipi ar pdf.js |
-| v2.1 | 2026.03.03 | React SPA ar Claude API |
-| **v3.0** | **2026.07.07** | **Pārņemts ar Hermes. Self-contained HTML. pdf.js aizvieto Claude. Hermes integrācija.** |
-
-## 🚀 Kā Palait?
-
-Vienkārši atver `index.html` pārlūkā. Viss.
-
-Lai dotu kolēģim — vienkārši iedod `index.html` failu.  
-Nevajag instalēt, nevajag serveri, nevajag API atslēgas.
+## Backup
+Pirms v3.5: `~/projects/darba-kalendars-backups/20260713_093504/` un `.tar.gz`
 
 ---
-
-> Būvēts ar ❤️ izmantojot Hermes Agent
+Būvēts ar ❤️ + Hermes Agent
