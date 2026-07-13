@@ -246,36 +246,32 @@ select {
   /* ── Calendar grid ── */
   #cal-grid { gap: 2px; }
 
-  /* ── Calendar cells ── */
+  /* ── Calendar cells (time-first) ── */
   .dc {
-    min-height: 50px;
+    min-height: 54px;
     padding: 3px 3px;
     border-radius: 4px;
     overflow: hidden;
   }
-  .dc > div:first-child > span:first-child {
-    font-size: 12px !important;
+  .dc-num { font-size: 11px !important; }
+  .dc-dow { font-size: 6px !important; }
+  .dc-tour {
+    font-size: 8px !important;
+    margin: 0 0 2px !important;
+    opacity: 0.9;
   }
-  .dc > div:first-child > span:last-child {
-    font-size: 6px !important;
+  .dc-time {
+    font-size: 9px !important; /* larger than tour on mobile */
+    font-weight: 600 !important;
+    color: #c7d2fe !important;
   }
-  .dc > div:nth-child(2) {
-    font-size: 10px !important;
-    margin: 1px 0 !important;
-    line-height: 1.1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .dc-hrs { font-size: 7px !important; color: #86efac !important; }
+  .dc-off-label {
+    font-size: 11px !important;
+    margin-top: 4px !important;
+    letter-spacing: 1px !important;
   }
-  .dc > div:nth-child(3) {
-    font-size: 7px !important;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .dc > div:nth-child(4) {
-    font-size: 6px !important;
-  }
+  .dc-pair-note { font-size: 6px !important; }
   .dc:hover { transform: none; }
 
   /* ── Legend ── */
@@ -343,10 +339,11 @@ select {
    ═══════════════════════════════════════════════════════════════ */
 @media (min-width: 641px) and (max-width: 900px) {
   #cal-card { padding: 14px !important; }
-  .dc { min-height: 70px; padding: 6px 5px; }
-  .dc > div:nth-child(2) { font-size: 12px !important; }
-  .dc > div:nth-child(3) { font-size: 8px !important; }
-  .dc > div:nth-child(4) { font-size: 8px !important; }
+  .dc { min-height: 74px; padding: 6px 5px; }
+  .dc-tour { font-size: 10px !important; }
+  .dc-time { font-size: 11px !important; }
+  .dc-hrs { font-size: 9px !important; }
+  .dc-off-label { font-size: 14px !important; }
   #cal-days-header > div { font-size: 10px !important; }
   #cal-grid { gap: 4px; }
   #cal-days-header { gap: 4px; }
@@ -354,14 +351,29 @@ select {
   .sc > div:last-child { font-size: 24px !important; }
 }
 
-/* Cell content — avoid inline fonts so mobile overrides work */
-.dc-num { font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--text); }
+/* Cell content — time-first hierarchy (Claude-era UX) */
+.dc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px; }
+.dc-num { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: var(--text); line-height: 1; }
 .dc-dow { font-size: 8px; color: var(--text-muted); }
-.dc-tour { font-size: 14px; font-weight: bold; margin: 4px 0; color: var(--text); }
-.dc-tour.nf { color: var(--accent); }
-.dc-time { font-size: 10px; color: var(--text-dim); }
-.dc-hrs { font-size: 9px; color: var(--text-muted); }
-.dc-pair-note { font-size: 8px; color: var(--purple); letter-spacing: 0.5px; }
+.dc-tour {
+  font-size: 10px; font-weight: 500; margin: 1px 0 3px; color: var(--accent);
+  letter-spacing: 0.3px; line-height: 1.1; opacity: 0.92;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dc-tour.nf { color: var(--orange); opacity: 1; }
+.dc-time {
+  font-size: 12px; font-weight: 600; color: #c7d2fe; /* soft blue — primary focus */
+  letter-spacing: 0.2px; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dc-time.range { font-variant-numeric: tabular-nums; }
+.dc-hrs { font-size: 10px; color: #86efac; margin-top: 2px; font-weight: 500; }
+.dc-off-label {
+  margin-top: 6px; font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px; letter-spacing: 1.5px; color: #f87171; opacity: 0.9;
+}
+.dc-pair-note { font-size: 7px; color: var(--purple); letter-spacing: 0.3px; margin-top: 1px; }
+.do .dc-num { color: #d1d5db; }
 .stat-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; }
 .stat-num { font-size: 28px; font-family: 'Bebas Neue', sans-serif; }
 .stat-num.accent { color: var(--accent); }
@@ -1292,9 +1304,11 @@ function renderCalendar() {
     const isOff = !info || info.type === 'off';
     const isSel = state.selectedDay === d;
 
-    let cls = 'dc do'; // default: off day (teal-grey)
+    let cls = 'dc do'; // default: off day
     let label = '';
     let timeStr = '';
+    let timeHtml = '';
+    let bodyHtml = '';
 
     if (info && info.type === 'work') {
       if (info.notFound) cls = 'dc dnf';
@@ -1302,8 +1316,21 @@ function renderCalendar() {
       else if (info.prevDayOvernight) cls = 'dc dp';
       else cls = 'dc dw';
 
-      label = info.tour;
-      timeStr = info.startTime !== '?' ? `${info.startTime}-${info.endTime}` : '?';
+      label = info.tour || '';
+      // Time-first UX: full start–end (no Claude-era "beidzas"); emphasize times over tour no.
+      const st = info.startTime && info.startTime !== '?' ? info.startTime : null;
+      const et = info.endTime && info.endTime !== '?' ? info.endTime : null;
+      if (st && et) {
+        timeStr = `${st}–${et}`;
+      } else if (st) {
+        timeStr = st; // start preferred over "beidzas end"
+      } else if (et) {
+        timeStr = et;
+      } else if (info.notFound) {
+        timeStr = 'nav PDF';
+      } else {
+        timeStr = '?';
+      }
     }
 
     if (isSel) cls += ' sel';
@@ -1317,19 +1344,27 @@ function renderCalendar() {
       ? (info.countedHours != null ? info.countedHours : info.hours)
       : null;
     const pairNote = (info && info.hoursHeldOnPrevDay)
-      ? '<div class="dc-pair-note">stundas → iepr. dienā</div>'
+      ? '<div class="dc-pair-note">→ iepr. dienā</div>'
       : (info && info.pairRole === 'start' && info.overnight)
-        ? '<div class="dc-pair-note">nakts pāris</div>'
+        ? '<div class="dc-pair-note">nakts →</div>'
         : '';
+
+    if (isOff) {
+      bodyHtml = `<div class="dc-off-label">Brīvs</div>`;
+    } else {
+      bodyHtml = `
+      ${safeLabel ? `<div class="dc-tour${info && info.notFound ? ' nf' : ''}">${safeLabel}</div>` : ''}
+      ${safeTime ? `<div class="dc-time range">${safeTime}</div>` : ''}
+      ${shownHours != null && shownHours > 0 ? `<div class="dc-hrs">${Number(shownHours).toFixed(1)}h</div>` : ''}
+      ${pairNote}`;
+    }
+
     cells += `<div class="${cls}" onclick="selectDay(${d})">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="dc-head">
         <span class="dc-num">${d}</span>
         <span class="dc-dow">${escapeHtml(dayName.slice(0,2))}</span>
       </div>
-      ${safeLabel ? `<div class="dc-tour${info.notFound ? ' nf' : ''}">${safeLabel}</div>` : ''}
-      ${safeTime ? `<div class="dc-time">${safeTime}</div>` : ''}
-      ${shownHours != null && shownHours > 0 ? `<div class="dc-hrs">${Number(shownHours).toFixed(1)}h</div>` : ''}
-      ${pairNote}
+      ${bodyHtml}
     </div>`;
   }
   gridEl.innerHTML = cells;
