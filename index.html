@@ -544,12 +544,12 @@ select {
       </div>
     </div>
 
-    <!-- CEĻŠ C: Auto OCR (neobligāts; tikai ar LIETOTĀJA key vai Magnifico app key) -->
+    <!-- CEĻŠ C: Auto OCR — BYOK only (katrs savu API key) -->
     <div class="hermes-card" style="margin-bottom: 20px; border-color: var(--green-border);">
       <h3 style="color: var(--green);">📸 AUTO OCR (neobligāts)</h3>
       <p style="font-size: 11px; color: #86efac; margin-bottom: 10px; line-height: 1.6;">
-        <b>Koda nav ar iebūvētiem API noslēpumiem</b> — katrs lietotājs ievada <b>savu</b> key, vai Magnifico savu Worker atslēgu.
-        Der: der <b>jebkurš OpenAI-compatible vision</b> (Nous API key, OpenRouter, utt.). Bez key — manuāli / Gemini paste.
+        <b>Nav iebūvētu API noslēpumu</b> — katrs ievada <b>savu</b> API key (Nous / OpenRouter / cits vision-compatible).
+        Worker tikai pārsūta pieprasījumu. Bez key — manuāli / Gemini paste.
       </p>
       <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
         <input type="file" id="image-upload" accept="image/*" style="display:none;">
@@ -573,13 +573,8 @@ select {
           <label>Režīms</label>
           <select id="ocr-mode" class="secret-input" onchange="onOcrSettingsChange()">
             <option value="off">Izslēgts (manuāli / Gemini / Hermes paste)</option>
-            <option value="byok">Mana API atslēga (ieteicams kolēģiem un visiem)</option>
-            <option value="worker">Magnifico ērtības ceļš (tikai privāta Worker atslēga)</option>
+            <option value="byok">Mana API atslēga (Nous / OpenRouter / custom)</option>
           </select>
-        </div>
-        <div class="settings-row" id="row-app-key" style="display:none;">
-          <label>Worker atslēga (X-App-Key) — tikai Magnifico / iekšējā</label>
-          <input type="password" id="ocr-app-key" class="secret-input" placeholder="dk_..." autocomplete="off" onchange="onOcrSettingsChange()" oninput="onOcrSettingsChange()">
         </div>
         <div id="row-byok" style="display:none;">
           <div class="settings-row">
@@ -609,8 +604,8 @@ select {
         </div>
         <p class="settings-hint">
           🔐 Repo un GitHub Pages <b>nesatur</b> API atslēgas. LocalStorage ir tikai šajā ierīcē/pārlūkā.
-          Magnifico Worker režīms prasa atsevišķu <code>dk_</code> app atslēgu (ne API key).
-          Rate limit ~20 bildes/stundā/IP. Darbojas ar jebkuru OpenAI-compatible vision endpointu.
+          Rate limit ~20 bildes/stundā/IP. Der jebkurš OpenAI-compatible vision (<code>/chat/completions</code>).
+          <b>Nous:</b> modelis <code>google/gemini-3.5-flash</code> (ne 2.5).
         </p>
         <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn-ghost" type="button" onclick="saveOcrSettings()">💾 Saglabāt iestatījumus</button>
@@ -887,21 +882,60 @@ function resolveDutyHours(info) {
 const OCR_STORAGE_KEY = 'darba-kalendars-ocr-v1';
 const WORKER_URL = 'https://darba-grafiks-worker.magnificox.workers.dev';
 
+function defaultOcrSettings() {
+  return {
+    mode: 'off',
+    userKey: '',
+    baseUrl: 'https://inference-api.nousresearch.com/v1',
+    model: 'google/gemini-3.5-flash',
+    providerPreset: 'nous'
+  };
+}
+
+function normalizeOcrSettings(raw) {
+  const d = raw && typeof raw === 'object' ? raw : {};
+  // Legacy Magnifico "worker" path removed → BYOK only
+  let mode = d.mode || 'off';
+  if (mode === 'worker') mode = 'byok';
+
+  let baseUrl = (d.baseUrl || 'https://inference-api.nousresearch.com/v1').toString().trim().replace(/\/$/, '');
+  let model = (d.model || 'google/gemini-3.5-flash').toString().trim();
+  let providerPreset = d.providerPreset || 'nous';
+
+  // Infer preset from base URL if missing/corrupted
+  if (baseUrl.includes('openrouter.ai')) providerPreset = 'openrouter';
+  else if (baseUrl.includes('inference-api.nousresearch.com')) providerPreset = 'nous';
+  else if (providerPreset === 'nous' && !baseUrl.includes('nousresearch.com') && baseUrl.includes('openai.com')) providerPreset = 'custom';
+
+  // Pin Nous to 3.5-flash if empty/2.5 (2.5 breaks for user). Never auto-downgrade other models.
+  if (providerPreset === 'nous' || baseUrl.includes('inference-api.nousresearch.com')) {
+    baseUrl = 'https://inference-api.nousresearch.com/v1';
+    if (!model || model === 'google/gemini-2.5-flash' || model === 'google/gemini-2.5-flash-lite') {
+      model = 'google/gemini-3.5-flash';
+    }
+    providerPreset = 'nous';
+  } else if (providerPreset === 'openrouter' || baseUrl.includes('openrouter.ai')) {
+    baseUrl = 'https://openrouter.ai/api/v1';
+    if (!model) model = 'google/gemini-2.5-flash';
+    providerPreset = 'openrouter';
+  }
+
+  return {
+    mode,
+    userKey: (d.userKey || '').toString().trim().replace(/\s+/g, ''),
+    baseUrl,
+    model,
+    providerPreset
+  };
+}
+
 function loadOcrSettings() {
   try {
     const raw = localStorage.getItem(OCR_STORAGE_KEY);
-    if (!raw) return { mode: 'off', appKey: '', userKey: '', baseUrl: 'https://inference-api.nousresearch.com/v1', model: 'google/gemini-3.5-flash', providerPreset: 'nous' };
-    const d = JSON.parse(raw);
-    return {
-      mode: d.mode || 'off',
-      appKey: d.appKey || '',
-      userKey: d.userKey || '',
-      baseUrl: d.baseUrl || 'https://inference-api.nousresearch.com/v1',
-      model: d.model || 'google/gemini-3.5-flash',
-      providerPreset: d.providerPreset || 'nous'
-    };
+    if (!raw) return defaultOcrSettings();
+    return normalizeOcrSettings(JSON.parse(raw));
   } catch (e) {
-    return { mode: 'off', appKey: '', userKey: '', baseUrl: 'https://inference-api.nousresearch.com/v1', model: 'google/gemini-3.5-flash', providerPreset: 'nous' };
+    return defaultOcrSettings();
   }
 }
 
@@ -909,13 +943,12 @@ function applyOcrSettingsToForm() {
   const s = loadOcrSettings();
   const modeEl = document.getElementById('ocr-mode');
   if (!modeEl) return;
-  modeEl.value = s.mode || 'off';
-  const appKey = document.getElementById('ocr-app-key');
+  // only off | byok supported
+  modeEl.value = (s.mode === 'byok') ? 'byok' : 'off';
   const userKey = document.getElementById('ocr-user-key');
   const baseUrl = document.getElementById('ocr-base-url');
   const model = document.getElementById('ocr-model');
   const preset = document.getElementById('ocr-provider-preset');
-  if (appKey) appKey.value = s.appKey || '';
   if (userKey) userKey.value = s.userKey || '';
   if (baseUrl) baseUrl.value = s.baseUrl || 'https://inference-api.nousresearch.com/v1';
   if (model) model.value = s.model || 'google/gemini-3.5-flash';
@@ -924,14 +957,14 @@ function applyOcrSettingsToForm() {
 }
 
 function gatherOcrSettingsFromForm() {
-  return {
+  const raw = {
     mode: (document.getElementById('ocr-mode') || {}).value || 'off',
-    appKey: (((document.getElementById('ocr-app-key') || {}).value || '').trim().replace(/\s+/g, '')),
     userKey: (((document.getElementById('ocr-user-key') || {}).value || '').trim().replace(/\s+/g, '')),
     baseUrl: ((document.getElementById('ocr-base-url') || {}).value || 'https://inference-api.nousresearch.com/v1').trim().replace(/\/$/, ''),
     model: ((document.getElementById('ocr-model') || {}).value || 'google/gemini-3.5-flash').trim(),
     providerPreset: ((document.getElementById('ocr-provider-preset') || {}).value || 'nous')
   };
+  return normalizeOcrSettings(raw);
 }
 
 const OCR_PROVIDER_PRESETS = {
@@ -959,6 +992,7 @@ function applyOcrProviderPreset() {
   const baseUrl = document.getElementById('ocr-base-url');
   const model = document.getElementById('ocr-model');
   const userKey = document.getElementById('ocr-user-key');
+  // always overwrite both base+model together so Nous never ends on OpenRouter's 2.5 etc.
   if (baseUrl) baseUrl.value = p.baseUrl;
   if (model) model.value = p.model;
   if (userKey) userKey.placeholder = p.placeholder;
@@ -992,17 +1026,12 @@ function onOcrSettingsChange() {
 
 function ocrIsConfigured(s) {
   if (!s || s.mode === 'off') return false;
-  if (s.mode === 'worker') return !!s.appKey;
-  if (s.mode === 'byok') return !!s.userKey;
-  return false;
+  return s.mode === 'byok' && !!s.userKey;
 }
 
 function updateOcrUi() {
   const s = gatherOcrSettingsFromForm();
-  // unification: if user typed keys but mode still off, keep display accurate using stored form
-  const rowApp = document.getElementById('row-app-key');
   const rowByok = document.getElementById('row-byok');
-  if (rowApp) rowApp.style.display = s.mode === 'worker' ? 'grid' : 'none';
   if (rowByok) rowByok.style.display = s.mode === 'byok' ? 'block' : 'none';
   const note = document.getElementById('ocr-lock-note');
   const btn = document.getElementById('btn-upload');
@@ -1012,9 +1041,11 @@ function updateOcrUi() {
       note.style.display = 'none';
     } else {
       note.style.display = 'block';
-      if (s.mode === 'byok' && !s.userKey) note.innerHTML = '🔒 BYOK: ievadi <b>savu</b> API key (Nous/OpenRouter/cits) un saglabā.';
-      else if (s.mode === 'worker' && !s.appKey) note.innerHTML = '🔒 Magnifico Worker: ievadi <b>dk_</b> atslēgu un saglabā (kolēģiem labāks BYOK).';
-      else note.innerHTML = '🔒 Auto OCR off. Universālais = manuāli / Gemini paste. Auto = ⚙️ savu API key (BYOK).';
+      if (s.mode === 'byok' && !s.userKey) {
+        note.innerHTML = '🔒 Ievadi <b>savu</b> API key (Nous sk-nous-… / OpenRouter / cits) un 💾 Saglabā.';
+      } else {
+        note.innerHTML = '🔒 Auto OCR off. Universālais = manuāli / Gemini paste. Auto = ⚙️ Mana API atslēga.';
+      }
     }
   }
   if (btn) {
@@ -2763,40 +2794,37 @@ function handleImageUpload(file) {
   statusEl.style.color = 'var(--accent)';
   btnEl.disabled = true;
 
+  // Always normalize (pins Nous → gemini-3.5-flash)
+  s = normalizeOcrSettings(s);
+  if (s.mode !== 'byok' || !s.userKey) {
+    statusEl.textContent = '❌ Nav API key — ⚙️ OCR iestatījumi vai Gemini paste';
+    statusEl.style.color = 'var(--red)';
+    btnEl.disabled = false;
+    return;
+  }
+
   const formData = new FormData();
   formData.append('image', file);
-  const headers = {};
-  if (s.mode === 'worker') {
-    formData.append('appKey', s.appKey);
-    headers['X-App-Key'] = s.appKey;
-  } else if (s.mode === 'byok') {
-    formData.append('userApiKey', s.userKey);
-    formData.append('baseUrl', s.baseUrl || 'https://inference-api.nousresearch.com/v1');
-    formData.append('model', s.model || 'google/gemini-3.5-flash');
-  }
+  formData.append('userApiKey', s.userKey);
+  formData.append('baseUrl', s.baseUrl || 'https://inference-api.nousresearch.com/v1');
+  formData.append('model', s.model || 'google/gemini-3.5-flash');
 
-  // Trim accidental spaces/newlines from mobile paste of app key
-  if (s.mode === 'worker' && s.appKey) {
-    s.appKey = String(s.appKey).trim().replace(/\s+/g, '');
-  }
-
-  fetch(WORKER_URL, { method: 'POST', body: formData, headers })
+  fetch(WORKER_URL, { method: 'POST', body: formData })
     .then(resp => {
       return resp.text().then(body => {
         if (!resp.ok) {
           const raw = (body || '').trim();
           let msg = raw || ('API kļūda ' + resp.status);
-          // Map confusing worker/upstream 401s to human Latvian
-          if (resp.status === 401 || /unauthorized/i.test(raw)) {
-            msg = (s.mode === 'byok')
-              ? 'BYOK noraidīts vai nav derīgs. Pārbaudi API key + Base URL + modelis.'
-              : 'Nepareiza Worker atslēga (dk_...). Vai ieslēdz BYOK ar savu API key.';
-          } else if (resp.status === 502 && /rejected|401|403|expired|OAuth|API key/i.test(raw)) {
+          if (resp.status === 401 || /unauthorized|API key required/i.test(raw)) {
+            msg = 'API key noraidīts / nav derīgs. Pārbaudi key + Base URL + modeli (Nous → gemini-3.5-flash).';
+          } else if (resp.status === 502 && /404|not found|2\.5/i.test(raw)) {
+            msg = 'Modelis netika atrasts. Nous: google/gemini-3.5-flash (ne 2.5).';
+          } else if (resp.status === 502 && /rejected|401|403|OAuth|API key/i.test(raw)) {
             msg = raw.slice(0, 160);
           } else if (resp.status === 429) {
-            msg = 'Pārāk daudz bilžu (~20/h). Pagaidi vai izmanto manuālo/Gemini ceļu.';
+            msg = 'Pārāk daudz bilžu (~20/h). Pagaidi vai manuālais/Gemini ceļš.';
           } else if (resp.status === 502) {
-            msg = raw.slice(0, 160) || 'OCR serveris īslaicīgi nestrādā. Mēģini vēlreiz vai manuālo ievadi.';
+            msg = raw.slice(0, 160) || 'OCR serveris īslaicīgi nestrādā.';
           }
           throw new Error(msg.slice(0, 180));
         }
