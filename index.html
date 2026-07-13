@@ -776,6 +776,51 @@ function isDutyContinuationTour(tour) {
   return !!(tour && /^[\-–—_]$/.test(String(tour).trim()));
 }
 
+// Fill missing D/D10 hours/times (incl. localStorage from older builds) so totals include duty.
+function hydrateDutyEntry(info) {
+  if (!info || info.type !== 'work') return info;
+  if (info.dutyContinuation || isDutyContinuationTour(info.tour)) {
+    info.isDuty = true;
+    info.dutyContinuation = true;
+    info.baseHours = 0;
+    info.hours = 0;
+    info.countedHours = 0;
+    if (!info.startTime || info.startTime === '?') info.startTime = '—';
+    if (!info.endTime || info.endTime === '?') info.endTime = '—';
+    return info;
+  }
+  if (!isDutyTour(info.tour)) return info;
+
+  info.isDuty = true;
+  const dutyT = defaultDutyTimes(info.tour);
+  if (dutyT) {
+    if (!info.startTime || info.startTime === '?' || info.startTime === '—') info.startTime = dutyT.startTime;
+    if (!info.endTime || info.endTime === '?' || info.endTime === '—') info.endTime = dutyT.endTime;
+  }
+
+  const rawH = (info.countedHours != null ? info.countedHours : info.hours);
+  const missing = rawH == null || rawH === '' || Number.isNaN(Number(rawH)) || Number(rawH) === 0;
+  if (missing && dutyT) {
+    info.baseHours = dutyT.hours;
+    info.hours = dutyT.hours;
+    info.countedHours = dutyT.hours;
+  } else if (info.baseHours == null && rawH != null) {
+    info.baseHours = Number(rawH);
+    if (info.countedHours == null) info.countedHours = Number(rawH);
+  }
+  return info;
+}
+
+function resolveWorkHours(info) {
+  if (!info || info.type !== 'work') return 0;
+  hydrateDutyEntry(info);
+  if (info.dutyContinuation || isDutyContinuationTour(info.tour)) return 0;
+  if (info.pairRole === 'end' && (info.countedHours === 0 || info.hoursHeldOnPrevDay)) return 0;
+  const h = (info.countedHours != null ? info.countedHours : info.hours);
+  if (h == null || Number.isNaN(Number(h))) return 0;
+  return Number(h);
+}
+
 const OCR_STORAGE_KEY = 'darba-kalendars-ocr-v1';
 const WORKER_URL = 'https://darba-grafiks-worker.magnificox.workers.dev';
 
@@ -1303,6 +1348,7 @@ async function buildCalendar() {
     }
 
     recalcOvernight(calendar, dim);
+    for (let d = 1; d <= dim; d++) hydrateDutyEntry(calendar[d]);
 
     state.calData = {
       month: parseInt(metaMonth),
@@ -1407,6 +1453,8 @@ function renderCalendar() {
   for (let i = 1; i < firstDow; i++) {
     cells += '<div></div>';
   }
+  // Duty hours must be present before rendering and stats
+  for (let d = 1; d <= dim; d++) hydrateDutyEntry(calendar[d]);
   for (let d = 1; d <= dim; d++) {
     const info = calendar[d];
     const isOff = !info || info.type === 'off';
@@ -1479,15 +1527,12 @@ function renderCalendar() {
   }
   gridEl.innerHTML = cells;
 
-  // Stats
-  const totalWork = Object.values(calendar).filter(d => d.type === 'work').length;
+  // Stats — dežūras (D/D10) IESKAITA kopējās stundās; "-" turpinājums = 0h
+  const totalWork = Object.values(calendar).filter(d => d.type === 'work' && !d.dutyContinuation && !isDutyContinuationTour(d.tour)).length;
   const totalOff = Object.values(calendar).filter(d => d.type === 'off').length;
   const totalHrs = Object.values(calendar)
     .filter(d => d.type === 'work')
-    .reduce((s, d) => {
-      const h = (d.countedHours != null ? d.countedHours : d.hours);
-      return s + (h || 0);
-    }, 0).toFixed(1);
+    .reduce((s, d) => s + resolveWorkHours(d), 0).toFixed(1);
   const notFound = Object.values(calendar).filter(d => d.notFound).length;
 
   document.getElementById('stats-bar').innerHTML = `
@@ -1785,14 +1830,14 @@ function showHoursBreakdown() {
   for (let d = 1; d <= state.calData.daysInMonth; d++) {
     const info = cal[d];
     if (!info || info.type !== 'work') continue;
-    const h = (info.countedHours != null ? info.countedHours : info.hours);
+    const h = resolveWorkHours(info);
     if (h == null || h === 0) continue;
     total += h;
 
-    if (isDutyTour(info.tour)) {
+    if (isDutyTour(info.tour) && !info.dutyContinuation) {
       duty += h;
       dutyDays.push(d);
-    } else {
+    } else if (!(info.dutyContinuation || isDutyContinuationTour(info.tour))) {
       // Prefer full overnight span if this day is pair start
       if (info.overnight && info.pairRole === 'start' && info.startTime && info.startTime !== '?' ) {
         // Find end on next day for night calc
@@ -2185,6 +2230,7 @@ function updateDayTour(day) {
 
   // Recalculate overnight flags and refresh
   recalcOvernight(state.calData.calendar, state.calData.daysInMonth);
+  for (let d = 1; d <= state.calData.daysInMonth; d++) hydrateDutyEntry(state.calData.calendar[d]);
   // Also save to monthsData
   if (state._monthsData) {
     const key = state.calData.year + '-' + String(state.calData.month).padStart(2, '0');
