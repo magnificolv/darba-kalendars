@@ -544,13 +544,12 @@ select {
       </div>
     </div>
 
-    <!-- CEĻŠ C: Auto OCR (prasa atslēgu — nav atvērts publiski) -->
+    <!-- CEĻŠ C: Auto OCR (neobligāts; catūrēt tikai ar LIETOTĀJA key vai Magnifico app key) -->
     <div class="hermes-card" style="margin-bottom: 20px; border-color: var(--green-border);">
       <h3 style="color: var(--green);">📸 AUTO OCR (neobligāts)</h3>
       <p style="font-size: 11px; color: #86efac; margin-bottom: 10px; line-height: 1.6;">
-        Publiski noklusējums <b>neredz</b> Magnifico Nous kredītus. Vajag app worker atslēgu
-        VAI savu OpenRouter / citu OpenAI-compatible API key (BYOK).
-        Citiem: izmanto Gemini ceļu augstāk (copy/paste) — tas ir drošais universālais variants.
+        <b>Koda nav ar iebūvētiem API noslēpumiem</b> — katrs lietotājs ievada <b>savu</b> key, vai Magnifico savu Worker atslēgu.
+        Der: der <b>jebkurš OpenAI-compatible vision</b> (Nous API key, OpenRouter, utt.). Bez key — manuāli / Gemini paste.
       </p>
       <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
         <input type="file" id="image-upload" accept="image/*" style="display:none;">
@@ -573,33 +572,45 @@ select {
         <div class="settings-row">
           <label>Režīms</label>
           <select id="ocr-mode" class="secret-input" onchange="onOcrSettingsChange()">
-            <option value="off">Izslēgts (tikai Gemini/Hermes paste)</option>
-            <option value="worker">Magnifico Worker (privāta app atslēga)</option>
-            <option value="byok">Mana API atslēga (OpenRouter / OpenAI-compatible)</option>
+            <option value="off">Izslēgts (manuāli / Gemini / Hermes paste)</option>
+            <option value="byok">Mana API atslēga (ieteicams kolēģiem un visiem)</option>
+            <option value="worker">Magnifico ērtības ceļš (tikai privāta Worker atslēga)</option>
           </select>
         </div>
         <div class="settings-row" id="row-app-key" style="display:none;">
-          <label>Worker atslēga (X-App-Key) — tava privātā</label>
+          <label>Worker atslēga (X-App-Key) — tikai Magnifico / iekšējā</label>
           <input type="password" id="ocr-app-key" class="secret-input" placeholder="dk_..." autocomplete="off" onchange="onOcrSettingsChange()" oninput="onOcrSettingsChange()">
         </div>
         <div id="row-byok" style="display:none;">
           <div class="settings-row">
-            <label>API Key (glabājas tikai tavā pārlūkā — localStorage)</label>
-            <input type="password" id="ocr-user-key" class="secret-input" placeholder="sk-or-..." autocomplete="off" onchange="onOcrSettingsChange()" oninput="onOcrSettingsChange()">
+            <label>Pakalpojuma sagatave</label>
+            <select id="ocr-provider-preset" class="secret-input" onchange="applyOcrProviderPreset()">
+              <option value="nous">Nous Portal API key (sk-nous-...)</option>
+              <option value="openrouter">OpenRouter (sk-or-...)</option>
+              <option value="custom">Custom OpenAI-compatible</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label>API Key (tikai tavā pārlūkā — localStorage, netiek commitots)</label>
+            <input type="password" id="ocr-user-key" class="secret-input" placeholder="sk-nous-... / sk-or-... / sk-..." autocomplete="off" onchange="onOcrSettingsChange()" oninput="onOcrSettingsChange()">
           </div>
           <div class="settings-row">
             <label>Base URL</label>
-            <input type="text" id="ocr-base-url" class="secret-input" value="https://openrouter.ai/api/v1" onchange="onOcrSettingsChange()">
+            <input type="text" id="ocr-base-url" class="secret-input" value="https://inference-api.nousresearch.com/v1" onchange="onOcrSettingsChange()">
           </div>
           <div class="settings-row">
-            <label>Modelis (vision)</label>
-            <input type="text" id="ocr-model" class="secret-input" value="google/gemini-2.5-flash" onchange="onOcrSettingsChange()">
+            <label>Modelis (vision — jābūt ar attēlu atbalstu)</label>
+            <input type="text" id="ocr-model" class="secret-input" value="google/gemini-3.5-flash" onchange="onOcrSettingsChange()">
           </div>
+          <p class="settings-hint" style="margin-top:6px;">
+            Kolēģim: paņem API key no sava Nous / OpenRouter konta → ielīmē šeit → Saglabāt → 📸 bilde.
+            Worker tikai <b>pārsūta</b> pieprasījumu ar <b>viņa</b> key — ne tērē Magnifico kredītus.
+          </p>
         </div>
         <p class="settings-hint">
-          🔐 Atslēgas <b>netiek</b> commitotas un netiek sūtītas uz GitHub Pages avotu.
-          Worker režīms sūta tikai apstiprinātu app key. BYOK režīmā Worker <b>proxy</b> izmanto <b>tavu</b> atslēgu, ne Magnifico Nous.
-          Rate limit: ~20 bildes/stundā no vienas IP.
+          🔐 Repo un GitHub Pages <b>nesatur</b> API atslēgas. LocalStorage ir tikai šajā ierīcē/pārlūkā.
+          Magnifico Worker režīms prasa atsevišķu <code>dk_</code> app atslēgu (ne API key).
+          Rate limit ~20 bildes/stundā/IP. Darbojas ar jebkuru OpenAI-compatible vision endpointu.
         </p>
         <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn-ghost" type="button" onclick="saveOcrSettings()">💾 Saglabāt iestatījumus</button>
@@ -879,17 +890,18 @@ const WORKER_URL = 'https://darba-grafiks-worker.magnificox.workers.dev';
 function loadOcrSettings() {
   try {
     const raw = localStorage.getItem(OCR_STORAGE_KEY);
-    if (!raw) return { mode: 'off', appKey: '', userKey: '', baseUrl: 'https://openrouter.ai/api/v1', model: 'google/gemini-2.5-flash' };
+    if (!raw) return { mode: 'off', appKey: '', userKey: '', baseUrl: 'https://inference-api.nousresearch.com/v1', model: 'google/gemini-3.5-flash', providerPreset: 'nous' };
     const d = JSON.parse(raw);
     return {
       mode: d.mode || 'off',
       appKey: d.appKey || '',
       userKey: d.userKey || '',
-      baseUrl: d.baseUrl || 'https://openrouter.ai/api/v1',
-      model: d.model || 'google/gemini-2.5-flash'
+      baseUrl: d.baseUrl || 'https://inference-api.nousresearch.com/v1',
+      model: d.model || 'google/gemini-3.5-flash',
+      providerPreset: d.providerPreset || 'nous'
     };
   } catch (e) {
-    return { mode: 'off', appKey: '', userKey: '', baseUrl: 'https://openrouter.ai/api/v1', model: 'google/gemini-2.5-flash' };
+    return { mode: 'off', appKey: '', userKey: '', baseUrl: 'https://inference-api.nousresearch.com/v1', model: 'google/gemini-3.5-flash', providerPreset: 'nous' };
   }
 }
 
@@ -902,10 +914,12 @@ function applyOcrSettingsToForm() {
   const userKey = document.getElementById('ocr-user-key');
   const baseUrl = document.getElementById('ocr-base-url');
   const model = document.getElementById('ocr-model');
+  const preset = document.getElementById('ocr-provider-preset');
   if (appKey) appKey.value = s.appKey || '';
   if (userKey) userKey.value = s.userKey || '';
-  if (baseUrl) baseUrl.value = s.baseUrl || 'https://openrouter.ai/api/v1';
-  if (model) model.value = s.model || 'google/gemini-2.5-flash';
+  if (baseUrl) baseUrl.value = s.baseUrl || 'https://inference-api.nousresearch.com/v1';
+  if (model) model.value = s.model || 'google/gemini-3.5-flash';
+  if (preset) preset.value = s.providerPreset || 'nous';
   updateOcrUi();
 }
 
@@ -913,10 +927,42 @@ function gatherOcrSettingsFromForm() {
   return {
     mode: (document.getElementById('ocr-mode') || {}).value || 'off',
     appKey: (((document.getElementById('ocr-app-key') || {}).value || '').trim().replace(/\s+/g, '')),
-    userKey: ((document.getElementById('ocr-user-key') || {}).value || '').trim(),
-    baseUrl: ((document.getElementById('ocr-base-url') || {}).value || 'https://openrouter.ai/api/v1').trim(),
-    model: ((document.getElementById('ocr-model') || {}).value || 'google/gemini-2.5-flash').trim()
+    userKey: (((document.getElementById('ocr-user-key') || {}).value || '').trim().replace(/\s+/g, '')),
+    baseUrl: ((document.getElementById('ocr-base-url') || {}).value || 'https://inference-api.nousresearch.com/v1').trim().replace(/\/$/, ''),
+    model: ((document.getElementById('ocr-model') || {}).value || 'google/gemini-3.5-flash').trim(),
+    providerPreset: ((document.getElementById('ocr-provider-preset') || {}).value || 'nous')
   };
+}
+
+const OCR_PROVIDER_PRESETS = {
+  nous: {
+    baseUrl: 'https://inference-api.nousresearch.com/v1',
+    model: 'google/gemini-3.5-flash',
+    placeholder: 'sk-nous-...'
+  },
+  openrouter: {
+    baseUrl: 'https://openrouter.ai/api/v1',
+    model: 'google/gemini-2.5-flash',
+    placeholder: 'sk-or-...'
+  },
+  custom: {
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    placeholder: 'sk-...'
+  }
+};
+
+function applyOcrProviderPreset() {
+  const presetEl = document.getElementById('ocr-provider-preset');
+  const name = (presetEl && presetEl.value) || 'nous';
+  const p = OCR_PROVIDER_PRESETS[name] || OCR_PROVIDER_PRESETS.nous;
+  const baseUrl = document.getElementById('ocr-base-url');
+  const model = document.getElementById('ocr-model');
+  const userKey = document.getElementById('ocr-user-key');
+  if (baseUrl) baseUrl.value = p.baseUrl;
+  if (model) model.value = p.model;
+  if (userKey) userKey.placeholder = p.placeholder;
+  onOcrSettingsChange();
 }
 
 function saveOcrSettings() {
@@ -966,9 +1012,9 @@ function updateOcrUi() {
       note.style.display = 'none';
     } else {
       note.style.display = 'block';
-      if (s.mode === 'worker' && !s.appKey) note.innerHTML = '🔒 Worker režīms: ievadi <b>Worker atslēgu</b> un saglabā.';
-      else if (s.mode === 'byok' && !s.userKey) note.innerHTML = '🔒 BYOK: ievadi savu API key un saglabā.';
-      else note.innerHTML = '🔒 Auto OCR bloķēts. Universālais ceļš = Gemini/Hermes copy-paste. Lai ieslēgtu auto — ⚙️ OCR iestatījumi.';
+      if (s.mode === 'byok' && !s.userKey) note.innerHTML = '🔒 BYOK: ievadi <b>savu</b> API key (Nous/OpenRouter/cits) un saglabā.';
+      else if (s.mode === 'worker' && !s.appKey) note.innerHTML = '🔒 Magnifico Worker: ievadi <b>dk_</b> atslēgu un saglabā (kolēģiem labāks BYOK).';
+      else note.innerHTML = '🔒 Auto OCR off. Universālais = manuāli / Gemini paste. Auto = ⚙️ savu API key (BYOK).';
     }
   }
   if (btn) {
@@ -2725,8 +2771,8 @@ function handleImageUpload(file) {
     headers['X-App-Key'] = s.appKey;
   } else if (s.mode === 'byok') {
     formData.append('userApiKey', s.userKey);
-    formData.append('baseUrl', s.baseUrl || 'https://openrouter.ai/api/v1');
-    formData.append('model', s.model || 'google/gemini-2.5-flash');
+    formData.append('baseUrl', s.baseUrl || 'https://inference-api.nousresearch.com/v1');
+    formData.append('model', s.model || 'google/gemini-3.5-flash');
   }
 
   // Trim accidental spaces/newlines from mobile paste of app key
@@ -2742,13 +2788,15 @@ function handleImageUpload(file) {
           let msg = raw || ('API kļūda ' + resp.status);
           // Map confusing worker/upstream 401s to human Latvian
           if (resp.status === 401 || /unauthorized/i.test(raw)) {
-            msg = 'Nepareiza Worker atslēga. OCR iestatījumos ielīmē atslēgu no OCR-SETUP un Saglabā.';
-          } else if (resp.status === 502 && /401|unauthorized/i.test(raw)) {
-            msg = 'Servera OCR tokens beidzies (ne tava atslēga). Pasaki Hermes: atjauno OCR tokenu.';
+            msg = (s.mode === 'byok')
+              ? 'BYOK noraidīts vai nav derīgs. Pārbaudi API key + Base URL + modelis.'
+              : 'Nepareiza Worker atslēga (dk_...). Vai ieslēdz BYOK ar savu API key.';
+          } else if (resp.status === 502 && /rejected|401|403|expired|OAuth|API key/i.test(raw)) {
+            msg = raw.slice(0, 160);
           } else if (resp.status === 429) {
             msg = 'Pārāk daudz bilžu (~20/h). Pagaidi vai izmanto manuālo/Gemini ceļu.';
           } else if (resp.status === 502) {
-            msg = 'OCR serveris īslaicīgi nestrādā. Mēģini vēlreiz vai manuālo ievadi.';
+            msg = raw.slice(0, 160) || 'OCR serveris īslaicīgi nestrādā. Mēģini vēlreiz vai manuālo ievadi.';
           }
           throw new Error(msg.slice(0, 180));
         }
