@@ -246,33 +246,60 @@ select {
   /* ── Calendar grid ── */
   #cal-grid { gap: 2px; }
 
-  /* ── Calendar cells (time-first) ── */
+  /* ── Calendar cells (Claude-like stacked times) ── */
   .dc {
-    min-height: 54px;
-    padding: 3px 3px;
-    border-radius: 4px;
+    min-height: 82px;          /* taller → vairāk vietas 2 rindu laikiem */
+    padding: 4px 3px 5px;
+    border-radius: 5px;
     overflow: hidden;
   }
+  .dc-head { margin-bottom: 1px; }
   .dc-num { font-size: 11px !important; }
   .dc-dow { font-size: 6px !important; }
   .dc-tour {
     font-size: 8px !important;
-    margin: 0 0 2px !important;
+    margin: 0 0 3px !important;
     opacity: 0.9;
+    /* keep tour one line but SMALL — times are the hero */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dc-times {
+    gap: 2px !important;
+    margin: 0 0 2px !important;
   }
   .dc-time {
-    font-size: 9px !important; /* larger than tour on mobile */
-    font-weight: 600 !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
     color: #c7d2fe !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
   }
-  .dc-hrs { font-size: 7px !important; color: #86efac !important; }
+  .dc-hrs {
+    font-size: 8px !important;
+    color: #86efac !important;
+    margin-top: 1px !important;
+  }
   .dc-off-label {
-    font-size: 11px !important;
-    margin-top: 4px !important;
+    font-size: 12px !important;
+    margin-top: 10px !important;
     letter-spacing: 1px !important;
   }
-  .dc-pair-note { font-size: 6px !important; }
+  .dc-pair-note {
+    font-size: 6px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .dc:hover { transform: none; }
+
+  /* Grid: slightly less tight so taller cells breathe */
+  #cal-grid { gap: 3px !important; }
+  #cal-days-header { gap: 3px !important; margin-bottom: 4px !important; }
+  #cal-card { padding: 10px 6px !important; }
 
   /* ── Legend ── */
   #cal-card .tg {
@@ -339,9 +366,10 @@ select {
    ═══════════════════════════════════════════════════════════════ */
 @media (min-width: 641px) and (max-width: 900px) {
   #cal-card { padding: 14px !important; }
-  .dc { min-height: 74px; padding: 6px 5px; }
+  .dc { min-height: 90px; padding: 6px 5px; }
   .dc-tour { font-size: 10px !important; }
-  .dc-time { font-size: 11px !important; }
+  .dc-times { gap: 1px; }
+  .dc-time { font-size: 11px !important; white-space: nowrap !important; overflow: visible !important; }
   .dc-hrs { font-size: 9px !important; }
   .dc-off-label { font-size: 14px !important; }
   #cal-days-header > div { font-size: 10px !important; }
@@ -363,10 +391,16 @@ select {
 .dc-tour.nf { color: var(--orange); opacity: 1; }
 .dc-time {
   font-size: 12px; font-weight: 600; color: #c7d2fe; /* soft blue — primary focus */
-  letter-spacing: 0.2px; line-height: 1.2;
+  letter-spacing: 0.2px; line-height: 1.25;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
-.dc-time.range { font-variant-numeric: tabular-nums; }
+.dc-times {
+  display: flex; flex-direction: column; gap: 1px; margin: 1px 0 2px;
+}
+.dc-times .dc-time {
+  white-space: nowrap; overflow: visible; text-overflow: clip;
+}
 .dc-hrs { font-size: 10px; color: #86efac; margin-top: 2px; font-weight: 500; }
 .dc-off-label {
   margin-top: 6px; font-family: 'Bebas Neue', sans-serif;
@@ -1317,19 +1351,19 @@ function renderCalendar() {
       else cls = 'dc dw';
 
       label = info.tour || '';
-      // Time-first UX: full start–end (no Claude-era "beidzas"); emphasize times over tour no.
+      // Stack start / end times (Claude-like). Prefer start over "beidzas".
       const st = info.startTime && info.startTime !== '?' ? info.startTime : null;
       const et = info.endTime && info.endTime !== '?' ? info.endTime : null;
       if (st && et) {
-        timeStr = `${st}–${et}`;
+        timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(st)}</div><div class="dc-time">${escapeHtml(et)}</div></div>`;
       } else if (st) {
-        timeStr = st; // start preferred over "beidzas end"
+        timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(st)}</div></div>`;
       } else if (et) {
-        timeStr = et;
+        timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(et)}</div></div>`;
       } else if (info.notFound) {
-        timeStr = 'nav PDF';
+        timeHtml = `<div class="dc-times"><div class="dc-time">nav PDF</div></div>`;
       } else {
-        timeStr = '?';
+        timeHtml = `<div class="dc-times"><div class="dc-time">?</div></div>`;
       }
     }
 
@@ -1339,12 +1373,12 @@ function renderCalendar() {
     const dayName = DOW_LV[dow];
 
     const safeLabel = label ? escapeHtml(label) : '';
-    const safeTime = timeStr ? escapeHtml(timeStr) : '';
     const shownHours = info && info.type === 'work'
       ? (info.countedHours != null ? info.countedHours : info.hours)
       : null;
+    // Mobile has limited height — keep pair note short / hide under extreme panic via CSS
     const pairNote = (info && info.hoursHeldOnPrevDay)
-      ? '<div class="dc-pair-note">→ iepr. dienā</div>'
+      ? '<div class="dc-pair-note">→ iepr.</div>'
       : (info && info.pairRole === 'start' && info.overnight)
         ? '<div class="dc-pair-note">nakts →</div>'
         : '';
@@ -1354,7 +1388,7 @@ function renderCalendar() {
     } else {
       bodyHtml = `
       ${safeLabel ? `<div class="dc-tour${info && info.notFound ? ' nf' : ''}">${safeLabel}</div>` : ''}
-      ${safeTime ? `<div class="dc-time range">${safeTime}</div>` : ''}
+      ${timeHtml}
       ${shownHours != null && shownHours > 0 ? `<div class="dc-hrs">${Number(shownHours).toFixed(1)}h</div>` : ''}
       ${pairNote}`;
     }
