@@ -1055,23 +1055,27 @@ function updateOcrUi() {
 }
 
 function startOcrUpload() {
-  const s = loadOcrSettings();
-  // prefer form if open
+  // Prefer open form; always normalize (worker→byok, Nous→3.5)
   const formS = gatherOcrSettingsFromForm();
-  const use = formS.mode !== 'off' ? formS : s;
+  const stored = loadOcrSettings();
+  let use = normalizeOcrSettings(formS.mode !== 'off' ? formS : stored);
   if (!ocrIsConfigured(use)) {
     const statusEl = document.getElementById('upload-status');
     if (statusEl) {
-      statusEl.textContent = 'Vispirms ievadi OCR atslēgu iestatījumos';
+      statusEl.textContent = 'Vispirms ievadi savu API key ⚙️ OCR iestatījumos un saglabā';
       statusEl.style.color = 'var(--red)';
     }
     const det = document.getElementById('ocr-settings');
     if (det) det.open = true;
     return;
   }
-  // save latest form values
   try { localStorage.setItem(OCR_STORAGE_KEY, JSON.stringify(use)); } catch (e) {}
-  document.getElementById('image-upload').click();
+  const inp = document.getElementById('image-upload');
+  if (inp) {
+    // allow re-picking same file
+    try { inp.value = ''; } catch (e) {}
+    inp.click();
+  }
 }
 
 
@@ -2777,31 +2781,39 @@ function handleImageUpload(file) {
   const statusEl = document.getElementById('upload-status');
   const btnEl = document.getElementById('btn-upload');
   const geminiInput = document.getElementById('gemini-input');
-  const s = loadOcrSettings();
+  // let (not const) — must reassign after normalize
+  let s = normalizeOcrSettings(loadOcrSettings());
 
-  if (!file || !file.type.startsWith('image/')) {
-    statusEl.textContent = '❌ Nepareizs faila tips';
-    statusEl.style.color = 'var(--red)';
+  function fail(msg) {
+    if (statusEl) {
+      statusEl.textContent = '❌ ' + msg;
+      statusEl.style.color = 'var(--red)';
+    }
+    if (btnEl) btnEl.disabled = false;
+    try { updateOcrUi(); } catch (e) {}
+  }
+
+  if (!file) {
+    fail('Nav faila');
     return;
   }
-  if (!ocrIsConfigured(s)) {
-    statusEl.textContent = '❌ Nav OCR atslēgas — izmanto Gemini copy/paste';
-    statusEl.style.color = 'var(--red)';
+  // Some mobile cameras return empty type — still allow common extensions
+  const typeOk = (file.type && file.type.startsWith('image/')) ||
+    /\.(jpe?g|png|webp|heic|heif|gif)$/i.test(file.name || '');
+  if (!typeOk) {
+    fail('Nepareizs faila tips (vajag bildi)');
+    return;
+  }
+  if (!ocrIsConfigured(s) || s.mode !== 'byok' || !s.userKey) {
+    fail('Nav API key — ⚙️ OCR iestatījumi (Mana API atslēga) vai Gemini paste');
     return;
   }
 
-  statusEl.textContent = '⏳ Apstrādā...';
-  statusEl.style.color = 'var(--accent)';
-  btnEl.disabled = true;
-
-  // Always normalize (pins Nous → gemini-3.5-flash)
-  s = normalizeOcrSettings(s);
-  if (s.mode !== 'byok' || !s.userKey) {
-    statusEl.textContent = '❌ Nav API key — ⚙️ OCR iestatījumi vai Gemini paste';
-    statusEl.style.color = 'var(--red)';
-    btnEl.disabled = false;
-    return;
+  if (statusEl) {
+    statusEl.textContent = '⏳ Apstrādā...';
+    statusEl.style.color = 'var(--accent)';
   }
+  if (btnEl) btnEl.disabled = true;
 
   const formData = new FormData();
   formData.append('image', file);
@@ -2809,7 +2821,11 @@ function handleImageUpload(file) {
   formData.append('baseUrl', s.baseUrl || 'https://inference-api.nousresearch.com/v1');
   formData.append('model', s.model || 'google/gemini-3.5-flash');
 
-  fetch(WORKER_URL, { method: 'POST', body: formData })
+  // Abort after 90s so UI never hangs forever
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 90000) : null;
+
+  fetch(WORKER_URL, { method: 'POST', body: formData, signal: ctrl ? ctrl.signal : undefined })
     .then(resp => {
       return resp.text().then(body => {
         if (!resp.ok) {
@@ -2832,17 +2848,27 @@ function handleImageUpload(file) {
       });
     })
     .then(text => {
-      geminiInput.value = text.trim();
-      geminiInput.dispatchEvent(new Event('input', { bubbles: true }));
-      statusEl.textContent = '✅ Gatavs! Teksts ielādēts zemāk.';
-      statusEl.style.color = 'var(--green)';
-      updateOcrUi();
-      setTimeout(() => { statusEl.textContent = ''; }, 5000);
+      if (geminiInput) {
+        geminiInput.value = (text || '').trim();
+        geminiInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (statusEl) {
+        statusEl.textContent = '✅ Gatavs! Teksts ielādēts zemāk.';
+        statusEl.style.color = 'var(--green)';
+      }
+      try { updateOcrUi(); } catch (e) {}
+      if (btnEl) btnEl.disabled = false;
+      setTimeout(() => {
+        if (statusEl && statusEl.textContent.indexOf('Gatavs') !== -1) statusEl.textContent = '';
+      }, 5000);
     })
     .catch(err => {
-      statusEl.textContent = '❌ ' + (err && err.message ? err.message : String(err));
-      statusEl.style.color = 'var(--red)';
-      updateOcrUi();
+      const isAbort = err && (err.name === 'AbortError' || /aborted/i.test(String(err.message || err)));
+      fail(isAbort ? 'Timeout (90s) — mēģini vēlreiz vai mazāku bildi' : (err && err.message ? err.message : String(err)));
+    })
+    .finally(() => {
+      if (timer) clearTimeout(timer);
+      if (btnEl) btnEl.disabled = false;
     });
 }
 
