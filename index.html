@@ -458,6 +458,7 @@ select {
   <button class="btn-ghost" id="btn-delete-month" style="display:none; color: var(--red); border-color: #3a2020;" onclick="deleteMonth()">🗑 Dzēst mēnesi</button>
   <button class="btn-ghost" id="btn-new-month" style="display:none" onclick="goToNewMonth()">+ JAUNS MĒNESIS</button>
     <button class="btn-ghost" id="btn-edit" style="display:none" onclick="goToEdit()">✏ REDIĢĒT</button>
+    <button class="btn-ghost" id="btn-sync" style="display:none" onclick="openSyncPanel()" title="PC ↔ telefons">⇄ SINHRO</button>
   </div>
 </div>
 
@@ -469,9 +470,43 @@ select {
     </div>
     <div style="text-align: center; margin-bottom: 32px;">
       <div class="title-lg">
-        IELĪMĒ GRAFIKU<br><span style="color: var(--accent);">VAI LIETO AI OCR</span>
+        GRAFIKA IEVADE<br><span style="color: var(--accent);">MANUĀLI VAI AR AI</span>
       </div>
-      <div class="hint" style="margin-top: 12px;">UNIVERSĀLAIS CEĻŠ = GEMINI COPY/PASTE · AUTO OCR PRASA TAVU KEY ↓</div>
+      <div class="hint" style="margin-top: 12px;">OLD-SCHOOL = ROKAS IEVADE · UNIVERSĀLAIS = GEMINI · AUTO OCR = KEY</div>
+    </div>
+
+    <!-- CEĻŠ 0: Manual (old-school — bez AI) -->
+    <div class="hermes-card" style="margin-bottom: 20px; border-color: var(--accent);">
+      <h3 style="color: var(--accent);">✍️ MANUĀLĀ IEVADE (bez AI / old-school)</h3>
+      <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.6;">
+        Nekādu mākslīgā integra. Izvēlies mēnesi, un pats ieraksti katru dienu
+        (b / D / tūres nr. / -). Beigās pievieno tūru PDF un veido kalendāru.
+      </p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <button class="btn" type="button" onclick="startManualEntry()" style="min-width: 220px;">
+          ✍️ IEVADĪT PAŠAM →
+        </button>
+        <span style="font-size: 10px; color: var(--text-dim);">Visi lauki sākumā = brīvdiena (b). Klikšķini un pārraksti.</span>
+      </div>
+    </div>
+
+    <!-- PC ↔ telefons -->
+    <div class="settings-card" style="margin-bottom: 20px;">
+      <details id="sync-panel-start">
+        <summary>⇄ SINHRONIZĀCIJA PC ↔ TELEFONS</summary>
+        <p class="settings-hint" style="margin-top:8px;">
+          PC un telefons katrs glabā savu localStorage — tie <b>neapvienojas paši</b>.
+          Lai pārceltu mēnesi: <b>Eksportē</b> failu uz vienu pusi → uz otras <b>Importē</b>.
+          (Ja redzi tukšu kalendāru telefonā, visticamāk data.json serverī ir tukšs.)
+        </p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+          <button class="btn-ghost" type="button" onclick="exportMonthsJson()">⬇ EKSPORTĒT mēnešus (.json)</button>
+          <button class="btn-ghost" type="button" onclick="document.getElementById('import-json-input').click()">⬆ IMPORTĒT .json</button>
+          <button class="btn-ghost" type="button" onclick="copyMonthsJson()">📋 Kopēt datus starpliktuvē</button>
+        </div>
+        <input type="file" id="import-json-input" accept="application/json,.json" style="display:none" onchange="importMonthsJsonFile(event)">
+        <div id="sync-status" style="font-size:10px; margin-top:8px; color:var(--text-dim);"></div>
+      </details>
     </div>
 
     <!-- CEĻŠ A: Gemini (universāls) -->
@@ -583,7 +618,10 @@ select {
     <div id="paste-success" style="display:none;" class="success-badge"></div>
     <div id="paste-error" style="display:none;" class="error-badge"></div>
 
-    <div style="text-align: center;">
+    <div style="text-align: center; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+      <button class="btn-ghost" type="button" onclick="startManualEntry()" style="min-width: 200px;">
+        ✍️ MANUĀLI BEZ TEKSTA
+      </button>
       <button class="btn" id="btn-next" disabled style="min-width: 260px;" onclick="goToEdit()">
         TĀLĀK → PĀRBAUDĪT UN REDIĢĒT
       </button>
@@ -598,7 +636,7 @@ select {
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
       <div>
         <div class="title-md">PĀRBAUDI UN REDIĢĒ</div>
-        <div style="font-size: 11px; color: var(--text-muted); letter-spacing: 1px;">KLIKŠĶINI UZ TŪRES LAI LABOTU · PIEVIENO PDF FAILUS</div>
+        <div style="font-size: 11px; color: var(--text-muted); letter-spacing: 1px;">KLIKŠĶINI UZ TŪRES · b=brīvs · D=dežūra · -=dež.2.diena · /nr=nakts · + PDF</div>
       </div>
       <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
         <div style="display: flex; gap: 8px; align-items: center;">
@@ -1651,6 +1689,7 @@ function setStep(step) {
   show('btn-delete-month', step === STEPS.CALENDAR ? 'inline-block' : 'none');
   show('btn-new-month', step === STEPS.CALENDAR ? 'inline-block' : 'none');
   show('btn-edit', step === STEPS.CALENDAR ? 'inline-block' : 'none');
+  show('btn-sync', step === STEPS.CALENDAR ? 'inline-block' : 'none');
 
   if (step === STEPS.EDIT) {
     renderEditRows();
@@ -2123,6 +2162,285 @@ function hideError() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MANUAL ENTRY + PC ↔ PHONE SYNC
+// ═══════════════════════════════════════════════════════════════════════════
+
+function blankEditSchedule(month, year) {
+  const dim = daysInMonth(month, year);
+  const sched = {};
+  for (let d = 1; d <= dim; d++) {
+    sched[d] = { tour: 'b', prevNight: false };
+  }
+  return sched;
+}
+
+/** Old-school: skip AI paste, open edit grid for chosen month/year (all days = b). */
+function startManualEntry() {
+  // Prefer values already on the edit form if user switched month earlier; else current date
+  let m = parseInt(document.getElementById('meta-month')?.value || state.metaMonth || '', 10);
+  let y = parseInt(document.getElementById('meta-year')?.value || state.metaYear || '', 10);
+  if (!m || m < 1 || m > 12) m = new Date().getMonth() + 1;
+  if (!y || y < 2020 || y > 2035) y = new Date().getFullYear();
+
+  // If coming from calendar new-month flow, clear AI paste
+  state.geminiText = '';
+  state.parsed = null;
+  state.pdfs = [];
+  state.error = null;
+  state.selectedDay = null;
+  state.editingDay = null;
+  state.metaMonth = String(m);
+  state.metaYear = y;
+  state.editSchedule = blankEditSchedule(m, y);
+
+  const mm = document.getElementById('meta-month');
+  const my = document.getElementById('meta-year');
+  if (mm) mm.value = String(m);
+  if (my) my.value = String(y);
+  const gi = document.getElementById('gemini-input');
+  if (gi) gi.value = '';
+  const ps = document.getElementById('paste-success');
+  if (ps) { ps.style.display = 'block'; ps.textContent = `✓ Manuālais režīms — ${MONTH_LV[m]} ${y} · visas dienas sākumā "b"`; }
+  const pe = document.getElementById('paste-error');
+  if (pe) pe.style.display = 'none';
+  const bn = document.getElementById('btn-next');
+  if (bn) bn.disabled = false;
+
+  setStep(STEPS.EDIT);
+  renderEditRows();
+  renderPdfList();
+  renderBackButton();
+  hideError();
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+}
+
+function buildExportPayload() {
+  // Ensure current month is flushed into monthsData
+  if (state.calData && state.calData.month && state.calData.year) {
+    if (!state._monthsData) state._monthsData = {};
+    const key = state.calData.year + '-' + String(state.calData.month).padStart(2, '0');
+    state._monthsData[key] = {
+      calendar: JSON.parse(JSON.stringify(state.calData.calendar || {})),
+      pdfTours: state.calData.pdfTours || state.pdfTours || {},
+      editSchedule: JSON.parse(JSON.stringify(state.editSchedule || {}))
+    };
+  }
+  const months = state._monthsData || {};
+  return {
+    version: '3.5',
+    exportedAt: new Date().toISOString(),
+    months: JSON.parse(JSON.stringify(months)),
+    // pointers for convenience
+    activeMonth: state.calData ? (state.calData.year + '-' + String(state.calData.month).padStart(2, '0')) : null
+  };
+}
+
+function setSyncStatus(msg, ok) {
+  const el = document.getElementById('sync-status');
+  const el2 = document.getElementById('sync-status-modal');
+  const color = ok === false ? 'var(--red)' : (ok ? 'var(--green)' : 'var(--text-dim)');
+  if (el) { el.textContent = msg; el.style.color = color; }
+  if (el2) { el2.textContent = msg; el2.style.color = color; }
+}
+
+function exportMonthsJson() {
+  try {
+    const payload = buildExportPayload();
+    const n = Object.keys(payload.months || {}).length;
+    if (n === 0) {
+      setSyncStatus('Nav saglabātu mēnešu eksportam. Vispirms izveido kalendāru.', false);
+      alert('Nav saglabātu mēnešu. Vispirms izveido kalendāru uz PC.');
+      return;
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = URL.createObjectURL(blob);
+    a.download = 'darba-kalendars-' + stamp + '.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    setSyncStatus('✓ Eksportēti ' + n + ' mēneši. Nosūti failu uz telefonu un spied Importēt.', true);
+    saveState();
+  } catch (e) {
+    setSyncStatus('Eksporta kļūda: ' + e.message, false);
+  }
+}
+
+async function copyMonthsJson() {
+  try {
+    const payload = buildExportPayload();
+    const n = Object.keys(payload.months || {}).length;
+    if (n === 0) {
+      setSyncStatus('Nav datu kopēšanai.', false);
+      return;
+    }
+    const text = JSON.stringify(payload);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    setSyncStatus('✓ Dati nokopēti starpliktuvē (' + n + ' mēn.). Ielīmē pie Importēt → vai saglabā kā .json failu.', true);
+  } catch (e) {
+    setSyncStatus('Kopēšanas kļūda: ' + e.message, false);
+  }
+}
+
+function normalizeImportedMonths(data) {
+  // Accept:
+  //  A) { version, months: { "2026-07": { calendar, editSchedule, pdfTours } } }
+  //  B) raw localStorage shape { monthsData / calData }
+  //  C) { "2026-07": { calendar... } } direct map
+  if (!data || typeof data !== 'object') return null;
+  if (data.months && typeof data.months === 'object') return data.months;
+  if (data.monthsData && typeof data.monthsData === 'object') return data.monthsData;
+  // single-month calData export?
+  if (data.calData && data.calData.calendar) {
+    const y = data.calData.year || data.metaYear;
+    const m = data.calData.month || data.metaMonth;
+    if (y && m) {
+      const key = y + '-' + String(m).padStart(2, '0');
+      return {
+        [key]: {
+          calendar: data.calData.calendar,
+          pdfTours: data.calData.pdfTours || {},
+          editSchedule: data.editSchedule || {}
+        }
+      };
+    }
+  }
+  // bare map of YYYY-MM
+  const keys = Object.keys(data).filter(k => /^\d{4}-\d{2}$/.test(k));
+  if (keys.length) {
+    const months = {};
+    for (const k of keys) months[k] = data[k];
+    return months;
+  }
+  return null;
+}
+
+function applyImportedMonths(months, mode) {
+  // mode: 'merge' | 'replace'
+  if (!months || !Object.keys(months).length) throw new Error('Tukši dati');
+  if (!state._monthsData) state._monthsData = {};
+  if (mode === 'replace') state._monthsData = {};
+  for (const [key, val] of Object.entries(months)) {
+    if (!val || typeof val !== 'object') continue;
+    state._monthsData[key] = {
+      calendar: val.calendar || {},
+      pdfTours: val.pdfTours || {},
+      editSchedule: val.editSchedule || {}
+    };
+  }
+  const keys = Object.keys(state._monthsData).sort();
+  const latest = keys[keys.length - 1];
+  const [y, m] = latest.split('-').map(Number);
+  const saved = state._monthsData[latest];
+  state.calData = {
+    month: m,
+    year: y,
+    daysInMonth: daysInMonth(m, y),
+    calendar: saved.calendar || {},
+    pdfTours: saved.pdfTours || {}
+  };
+  state.editSchedule = saved.editSchedule || {};
+  state.pdfTours = saved.pdfTours || null;
+  state.metaMonth = String(m);
+  state.metaYear = y;
+  state.selectedDay = null;
+  // hydrate duty on load
+  const dim = state.calData.daysInMonth;
+  for (let d = 1; d <= dim; d++) {
+    if (state.calData.calendar[d]) hydrateDutyEntry(state.calData.calendar[d]);
+  }
+  saveState();
+  setStep(STEPS.CALENDAR);
+  renderCalendar();
+  return keys.length;
+}
+
+function importMonthsJsonFile(ev) {
+  const file = ev && ev.target && ev.target.files && ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function() {
+    try {
+      const data = JSON.parse(String(reader.result || ''));
+      const months = normalizeImportedMonths(data);
+      if (!months || !Object.keys(months).length) {
+        setSyncStatus('Fails nav derīgs darba-kalendars eksports.', false);
+        alert('Fails nav derīgs. Vajag .json no "Eksportēt mēnešus".');
+        return;
+      }
+      const keys = Object.keys(months).sort().join(', ');
+      const merge = confirm(
+        'Atrasti mēneši: ' + keys + '\n\n' +
+        'OK = APVIENOT ar šī telefona/PC esošajiem\n' +
+        'Cancel = atcelt importu'
+      );
+      if (!merge) {
+        setSyncStatus('Imports atcelts.', false);
+        return;
+      }
+      // Second confirm only if local months exist and conflict keys
+      let mode = 'merge';
+      if (state._monthsData && Object.keys(state._monthsData).length) {
+        const replace = confirm('Vai AIZSTĀT visus vietējos mēnešus ar importētajiem?\n\nOK = aizstāt visus\nCancel = apvienot (ieteicams)');
+        if (replace) mode = 'replace';
+      }
+      const count = applyImportedMonths(months, mode);
+      setSyncStatus('✓ Importēti / aktīvi mēneši: ' + count + ' (' + mode + ')', true);
+      // close modal if open
+      document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+    } catch (e) {
+      setSyncStatus('Importa kļūda: ' + e.message, false);
+      alert('Importa kļūda: ' + e.message);
+    }
+  };
+  reader.readAsText(file);
+  try { ev.target.value = ''; } catch (e) {}
+}
+
+// Clean redefinition: overwrite previous stubby import via later assignment? better patch body now
+// (handled in next replace)
+
+function openSyncPanel() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+  const n = state._monthsData ? Object.keys(state._monthsData).length : 0;
+  const cur = state.calData ? (MONTH_LV[state.calData.month] + ' ' + state.calData.year) : '—';
+  modal.innerHTML = `
+    <div class="modal fade-in" style="max-width: 420px;">
+      <div style="font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 3px; color: var(--accent); margin-bottom: 8px;">
+        PC ↔ TELEFONS
+      </div>
+      <p style="font-size: 11px; color: var(--text-dim); line-height: 1.6; margin-bottom: 12px;">
+        Šobrīd vietēji: <b style="color:var(--text)">${n}</b> mēn. · aktīvs: <b style="color:var(--text)">${escapeHtml(String(cur))}</b><br>
+        1) Uz PC spied <b>Eksportēt</b> → lejupielādē .json<br>
+        2) Nosūti sev (Mail/Telegram/WhatsApp/kabelis)<br>
+        3) Telefonā atver šo app → Importēt → izvēlies failu
+      </p>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button class="btn" type="button" onclick="exportMonthsJson()">⬇ EKSPORTĒT mēnešus (.json)</button>
+        <button class="btn-ghost" type="button" onclick="document.getElementById('import-json-input-modal').click()">⬆ IMPORTĒT .json</button>
+        <button class="btn-ghost" type="button" onclick="copyMonthsJson()">📋 Kopēt datus</button>
+        <input type="file" id="import-json-input-modal" accept="application/json,.json" style="display:none"
+          onchange="importMonthsJsonFile(event)">
+      </div>
+      <div id="sync-status-modal" style="font-size:10px; margin-top:10px; color:var(--text-dim);"></div>
+      <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()" style="width:100%; margin-top:12px;">Aizvērt</button>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -2534,15 +2852,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadFromGithubData() {
   try {
-    const resp = await fetch('data.json');
+    // cache-bust so phone gets fresh push
+    const resp = await fetch('data.json?ts=' + Date.now());
     if (!resp.ok) return;
     const data = await resp.json();
     if (data.months && Object.keys(data.months).length > 0) {
-      // Find the first month and display it
       const keys = Object.keys(data.months).sort();
       const latest = keys[keys.length - 1];
       const monthData = data.months[latest];
-      if (monthData.calendar) {
+      if (monthData && monthData.calendar) {
         const [y, m] = latest.split('-').map(Number);
         state._monthsData = data.months;
         state.calData = {
@@ -2554,6 +2872,10 @@ async function loadFromGithubData() {
         state.editSchedule = monthData.editSchedule || {};
         state.metaMonth = String(m);
         state.metaYear = y;
+        for (let d = 1; d <= state.calData.daysInMonth; d++) {
+          if (state.calData.calendar[d]) hydrateDutyEntry(state.calData.calendar[d]);
+        }
+        saveState();
         setStep(STEPS.CALENDAR);
         renderCalendar();
       }
