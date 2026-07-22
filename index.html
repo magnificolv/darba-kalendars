@@ -170,6 +170,12 @@ select {
 .subtitle { font-size: 9px; color: var(--text-muted); letter-spacing: 2px; }
 .label { font-size: 11px; color: var(--accent); letter-spacing: 2px; margin-bottom: 8px; }
 .hint { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; margin-top: 10px; }
+.hint-accent {
+  color: #fbbf24;
+  letter-spacing: 1.5px;
+  font-size: 12px;
+  opacity: 0.95;
+}
 .success-badge { background: #1a2a1a; border: 1px solid var(--green-border); border-radius: 8px; padding: 10px 14px; font-size: 11px; color: var(--green); }
 .error-badge { background: var(--red-bg); border: 1px solid var(--red); border-radius: 8px; padding: 10px 14px; font-size: 11px; color: var(--red); }
 .code-box {
@@ -506,21 +512,19 @@ select {
       <div class="title-lg">
         GRAFIKA IEVADE<br><span style="color: var(--accent);">MANUĀLI VAI AR AI</span>
       </div>
-      <div class="hint" style="margin-top: 12px;">OLD-SCHOOL = ROKAS IEVADE · UNIVERSĀLAIS = GEMINI · AUTO OCR = KEY</div>
+      <div class="hint hint-accent" style="margin-top: 12px;">OLD-SCHOOL = ROKAS IEVADE · UNIVERSĀLAIS = GEMINI · AUTO OCR = KEY</div>
     </div>
 
     <!-- CEĻŠ 0: Manual (old-school — bez AI) -->
     <div class="hermes-card" style="margin-bottom: 20px; border-color: var(--accent);">
       <h3 style="color: var(--accent);">✍️ MANUĀLĀ IEVADE (bez AI / old-school)</h3>
-      <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.6;">
-        Nekādu mākslīgā integra. Izvēlies mēnesi, un pats ieraksti katru dienu
-        (b / D / tūres nr. / -). Beigās pievieno tūru PDF un veido kalendāru.
+      <p style="font-size: 12px; color: #c7d2fe; margin-bottom: 14px; line-height: 1.65;">
+        Izvēlies mēnesi un pats ieraksti katru dienu (b / D / tūres nr. / -). Beigās pievieno tūru PDF un veido kalendāru.
       </p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
         <button class="btn" type="button" onclick="startManualEntry()" style="min-width: 220px;">
           ✍️ IEVADĪT PAŠAM →
         </button>
-        <span style="font-size: 10px; color: var(--text-dim);">Visi lauki sākumā = brīvdiena (b). Klikšķini un pārraksti.</span>
       </div>
     </div>
 
@@ -528,15 +532,9 @@ select {
     <div class="settings-card" style="margin-bottom: 20px;">
       <details id="sync-panel-start">
         <summary>⇄ SINHRONIZĀCIJA PC ↔ TELEFONS</summary>
-        <p class="settings-hint" style="margin-top:8px;">
-          PC un telefons katrs glabā savu localStorage — tie <b>neapvienojas paši</b>.
-          Lai pārceltu mēnesi: <b>Eksportē</b> failu uz vienu pusi → uz otras <b>Importē</b>.
-          (Ja redzi tukšu kalendāru telefonā, visticamāk data.json serverī ir tukšs.)
-        </p>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
           <button class="btn-ghost" type="button" onclick="exportMonthsJson()">⬇ EKSPORTĒT mēnešus (.json)</button>
           <button class="btn-ghost" type="button" onclick="document.getElementById('import-json-input').click()">⬆ IMPORTĒT .json</button>
-          <button class="btn-ghost" type="button" onclick="copyMonthsJson()">📋 Kopēt datus starpliktuvē</button>
         </div>
         <input type="file" id="import-json-input" accept="application/json,.json" style="display:none" onchange="importMonthsJsonFile(event)">
         <div id="sync-status" style="font-size:10px; margin-top:8px; color:var(--text-dim);"></div>
@@ -2372,35 +2370,10 @@ function exportMonthsJson() {
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-    setSyncStatus('✓ Eksportēti ' + n + ' mēneši. Nosūti failu uz telefonu un spied Importēt.', true);
+    setSyncStatus('✓ Eksportēti ' + n + ' mēneši.', true);
     saveState();
   } catch (e) {
     setSyncStatus('Eksporta kļūda: ' + e.message, false);
-  }
-}
-
-async function copyMonthsJson() {
-  try {
-    const payload = buildExportPayload();
-    const n = Object.keys(payload.months || {}).length;
-    if (n === 0) {
-      setSyncStatus('Nav datu kopēšanai.', false);
-      return;
-    }
-    const text = JSON.stringify(payload);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-    }
-    setSyncStatus('✓ Dati nokopēti starpliktuvē (' + n + ' mēn.). Ielīmē pie Importēt → vai saglabā kā .json failu.', true);
-  } catch (e) {
-    setSyncStatus('Kopēšanas kļūda: ' + e.message, false);
   }
 }
 
@@ -2519,9 +2492,6 @@ function importMonthsJsonFile(ev) {
   try { ev.target.value = ''; } catch (e) {}
 }
 
-// Clean redefinition: overwrite previous stubby import via later assignment? better patch body now
-// (handled in next replace)
-
 function openSyncPanel() {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -2530,19 +2500,15 @@ function openSyncPanel() {
   const cur = state.calData ? (MONTH_LV[state.calData.month] + ' ' + state.calData.year) : '—';
   modal.innerHTML = `
     <div class="modal fade-in" style="max-width: 420px;">
-      <div style="font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 3px; color: var(--accent); margin-bottom: 8px;">
+      <div style="font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 3px; color: var(--accent); margin-bottom: 14px;">
         PC ↔ TELEFONS
       </div>
-      <p style="font-size: 11px; color: var(--text-dim); line-height: 1.6; margin-bottom: 12px;">
-        Šobrīd vietēji: <b style="color:var(--text)">${n}</b> mēn. · aktīvs: <b style="color:var(--text)">${escapeHtml(String(cur))}</b><br>
-        1) Uz PC spied <b>Eksportēt</b> → lejupielādē .json<br>
-        2) Nosūti sev (Mail/Telegram/WhatsApp/kabelis)<br>
-        3) Telefonā atver šo app → Importēt → izvēlies failu
-      </p>
+      <div style="font-size: 12px; color: #c7d2fe; margin-bottom: 16px; letter-spacing: 0.3px;">
+        ${n} mēn. vietēji · aktīvs: <b style="color:var(--text)">${escapeHtml(String(cur))}</b>
+      </div>
       <div style="display:flex; flex-direction:column; gap:8px;">
         <button class="btn" type="button" onclick="exportMonthsJson()">⬇ EKSPORTĒT mēnešus (.json)</button>
         <button class="btn-ghost" type="button" onclick="document.getElementById('import-json-input-modal').click()">⬆ IMPORTĒT .json</button>
-        <button class="btn-ghost" type="button" onclick="copyMonthsJson()">📋 Kopēt datus</button>
         <input type="file" id="import-json-input-modal" accept="application/json,.json" style="display:none"
           onchange="importMonthsJsonFile(event)">
       </div>
