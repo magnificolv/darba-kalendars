@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Darba Kalendārs v3.5 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.6 — Vilciena Konduktors</title>
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   DARBA KALENDĀRS v3.5 — Dark Theme
+   DARBA KALENDĀRS v3.6 — Dark Theme
    Pārņemts no Claude Code, pārbūvēts ar Hermes Agent
    ═══════════════════════════════════════════════════════════════════════════ */
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
@@ -39,6 +39,9 @@
   --orange: #f59e0b;
   --orange-bg: #2a1a10;
   --orange-border: #5c3a1a;
+  --sky: #7dd3fc;
+  --sky-bg: #0c1926;
+  --sky-border: #1a4a6e;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -115,9 +118,12 @@ select {
 .do { background: #1a1118; border-color: #3a2025; }
 .do:hover { border-color: #ef4444; box-shadow: 0 0 14px rgba(239,68,68,.3); }
 .dnf { background: var(--orange-bg); border-color: var(--orange-border); }
+.dd { background: var(--sky-bg); border-color: var(--sky-border); }
+.dd:hover { border-color: #38bdf8; box-shadow: 0 0 14px rgba(56,189,248,.35); }
 .sel.dw { border-color: #3b82f6 !important; box-shadow: 0 0 20px rgba(59,130,246,.5) !important; }
 .sel.dn { border-color: #8b5cf6 !important; box-shadow: 0 0 20px rgba(139,92,246,.5) !important; }
 .sel.dp { border-color: #22c55e !important; box-shadow: 0 0 20px rgba(34,197,94,.5) !important; }
+.sel.dd { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,.5) !important; }
 .sel.do { border-color: #ef4444 !important; box-shadow: 0 0 20px rgba(239,68,68,.3) !important; }
 
 /* Tags */
@@ -129,6 +135,7 @@ select {
 .tag-w { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border); }
 .tag-n { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
 .tag-p { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+.tag-d { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
 
 /* Edit row */
 .erow {
@@ -169,6 +176,33 @@ select {
   background: var(--bg-input); border-radius: 6px; padding: 10px 14px;
   font-size: 11px; color: #9ca3af; line-height: 1.7; font-family: monospace;
 }
+.prompt-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 8px;
+}
+.btn-copy {
+  background: linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%);
+  color: #7dd3fc; border: 1px solid #2a5a8a;
+  padding: 8px 16px; font-family: 'Bebas Neue', sans-serif; font-size: 14px;
+  letter-spacing: 1.5px; cursor: pointer; border-radius: 6px; transition: all .2s;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn-copy:hover {
+  background: linear-gradient(135deg, #2a4a7a 0%, #1a3558 100%);
+  border-color: #38bdf8; color: #e0f2fe;
+  box-shadow: 0 0 16px rgba(56,189,248,.35); transform: translateY(-1px);
+}
+.btn-copy.copied {
+  background: linear-gradient(135deg, #14532d 0%, #052e16 100%);
+  border-color: #22c55e; color: #86efac;
+}
+.btn-pdf-refresh {
+  background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border);
+  padding: 10px 18px; font-family: 'DM Mono', monospace; font-size: 12px;
+  cursor: pointer; border-radius: 4px; transition: all .2s;
+}
+.btn-pdf-refresh:hover { border-color: #38bdf8; color: #e0f2fe; box-shadow: 0 0 12px rgba(56,189,248,.3); }
+
 .edit-inp {
   background: var(--bg-input); border: 1px solid var(--accent); color: var(--text);
   padding: 4px 8px; border-radius: 4px; font-family: 'DM Mono', monospace;
@@ -406,7 +440,7 @@ select {
   margin-top: 6px; font-family: 'Bebas Neue', sans-serif;
   font-size: 15px; letter-spacing: 1.5px; color: #f87171; opacity: 0.9;
 }
-.dc-pair-note { font-size: 7px; color: var(--purple); letter-spacing: 0.3px; margin-top: 1px; }
+.dc-pair-note { font-size: 7px; color: var(--green); letter-spacing: 0.3px; margin-top: 1px; }
 .do .dc-num { color: #d1d5db; }
 .stat-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; }
 .stat-num { font-size: 28px; font-family: 'Bebas Neue', sans-serif; }
@@ -509,12 +543,17 @@ select {
       </details>
     </div>
 
-    <!-- CEĻŠ A: Gemini (universāls) -->
+    <!-- CEĻŠ A: Gemini / jebkurš LLM (universāls) -->
     <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;">
-      <div class="label" style="display: flex; align-items: center; gap: 8px;">
-        <span>📋 GEMINI PROMPT (universāls — kopē un izmanto)</span>
+      <div class="prompt-card-head">
+        <div class="label" style="margin: 0;">
+          <span>📋 GRAFIKA PROMPT (universāls — Gemini / Claude / Hermes…)</span>
+        </div>
+        <button type="button" class="btn-copy" id="btn-copy-gemini" onclick="copyGeminiPrompt()" title="Nokopē promptu starpliktuvē">
+          📋 KOPĒT
+        </button>
       </div>
-      <div class="code-box">
+      <div class="code-box" id="gemini-prompt-text">
         Lūdzu nolasi šo darba grafika bildi un izvadi tabulu šādā formātā:<br>
         1: /70174<br>2: b<br>3: 7117<br>...<br>
         Kur "/" pirms numura nozīmē naktsmainis (darbs sākas iepriekšējā dienā),<br>
@@ -523,28 +562,12 @@ select {
         Tūres numuri ir 4-5 ciparu skaitļi (piem., 5001, 7117, 701/74).<br>
         Neraksti neko citu, tikai šo tabulu.
       </div>
-    </div>
-
-    <!-- CEĻŠ B: Hermes Auto (personīgs) -->
-    <div class="hermes-card" style="margin-bottom: 20px;">
-      <h3>🤖 HERMES AUTO (personīgais ceļš)</h3>
-      <p style="font-size: 11px; color: #c4b5fd; margin-bottom: 12px; line-height: 1.6;">
-        Tev ir Hermes Agent — izmanto viņu! Nav jāiet uz Gemini, jākopē, jāpārslēdzas.
-      </p>
-      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <button class="btn-sm" onclick="copyHermesPrompt()" style="background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border);">
-          📋 Kopēt Hermes Promptu
-        </button>
-        <span style="font-size: 10px; color: var(--text-dim); display: flex; align-items: center;">
-          → ielīmē Hermes čatā + pievieno bildi → saņem tekstu → ielīmē šeit ↓
-        </span>
-      </div>
-      <div id="hermes-copied" style="display:none; margin-top: 8px; font-size: 10px; color: var(--green);">
-        ✓ Prompt nokopēts! Ielīmē to Hermes čatā kopā ar grafika bildi.
+      <div id="gemini-copied" style="display:none; margin-top: 8px; font-size: 11px; color: var(--green);">
+        ✓ Prompt nokopēts! Ielīmē to savā AI čatā kopā ar grafika bildi.
       </div>
     </div>
 
-    <!-- CEĻŠ C: Auto OCR — BYOK only (katrs savu API key) -->
+    <!-- CEĻŠ B: Auto OCR — BYOK only (katrs savu API key) -->
     <div class="hermes-card" style="margin-bottom: 20px; border-color: var(--green-border);">
       <h3 style="color: var(--green);">📸 AUTO OCR (neobligāts)</h3>
       <p style="font-size: 11px; color: #86efac; margin-bottom: 10px; line-height: 1.6;">
@@ -561,7 +584,7 @@ select {
       </div>
       <div id="ocr-lock-note" class="ocr-locked-note">
         🔒 Auto OCR bloķēts, līdz ievadi atslēgu sadaļā <b>⚙️ OCR iestatījumi</b> zemāk.
-        Bez atslēgas lieto Gemini / Hermes copy-paste.
+        Bez atslēgas lieto prompta copy-paste (Gemini / Claude / Hermes…).
       </div>
     </div>
 
@@ -719,7 +742,8 @@ select {
           <div class="legend-title">LEĢENDA</div>
           <span class="tg tag-w">Darbs</span>
           <span class="tg tag-n">Nakts</span>
-          <span class="tg tag-p">Nakts (iepr.)</span>
+          <span class="tg tag-p">no nakts</span>
+          <span class="tg tag-d">Dežūra</span>
           <span class="tg tag-b">Brīvdiena</span>
           <span class="tg" style="background:var(--orange-bg); color:var(--orange); border:1px solid var(--orange-border);">Nav PDF</span>
         </div>
@@ -731,13 +755,16 @@ select {
     <!-- Day detail card -->
     <div id="day-detail" style="display:none;"></div>
 
-    <!-- Add PDF button -->
-    <div style="text-align: center; margin-top: 16px;">
+    <!-- Add PDF + refresh from catalog -->
+    <div style="text-align: center; margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: center;">
       <input type="file" id="pdf-input-cal" accept="application/pdf" multiple style="display:none;" onchange="addExtraPdfs(this.files)">
       <button class="btn-ghost" onclick="document.getElementById('pdf-input-cal').click()" style="font-size: 13px; padding: 10px 20px;">
         📄 + PIEVIENOT PDF FAILUS
       </button>
-      <span style="font-size: 10px; color: var(--text-muted); margin-left: 10px;" id="extra-pdf-hint"></span>
+      <button type="button" class="btn-pdf-refresh" onclick="refreshAllFromPdf()" title="Pārlasa visas tūru laikus no jau ielādētā PDF kataloga">
+        🔄 ATJAUNINĀT LAIKUS NO PDF
+      </button>
+      <span style="font-size: 10px; color: var(--text-muted);" id="extra-pdf-hint"></span>
     </div>
   </div>
 </div>
@@ -1540,9 +1567,9 @@ function renderEditRows() {
     let tagClass = 'tag-w';
     let tagLabel = 'Tūre';
     if (isOff) { tagClass = 'tag-b'; tagLabel = 'Brīvdiena'; }
-    else if (isDutyCont) { tagClass = 'tag-p'; tagLabel = 'Dežūra →'; }
-    else if (isDuty) { tagClass = 'tag-n'; tagLabel = 'Dežūra'; }
-    else if (e.prevNight) { tagClass = 'tag-p'; tagLabel = 'Nakts (iepr.)'; }
+    else if (isDutyCont) { tagClass = 'tag-d'; tagLabel = 'Dežūra →'; }
+    else if (isDuty) { tagClass = 'tag-d'; tagLabel = 'Dežūra'; }
+    else if (e.prevNight) { tagClass = 'tag-p'; tagLabel = 'no nakts'; }
 
     html += `<div class="erow ${isWE ? 'wknd' : ''}">
       <div style="font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: ${isWE ? 'var(--accent)' : 'var(--text-dim)'}; text-align: center;">${d}</div>`;
@@ -1600,8 +1627,8 @@ function renderCalendar() {
     let bodyHtml = '';
 
     if (info && info.type === 'work') {
-      if (info.dutyContinuation || isDutyContinuationTour(info.tour)) cls = 'dc dp';
-      else if (info.isDuty || isDutyTour(info.tour)) cls = 'dc dn'; // duty uses purple-ish night style
+      if (info.dutyContinuation || isDutyContinuationTour(info.tour)) cls = 'dc dd'; // dežūras 2. diena — gaiši zila
+      else if (info.isDuty || isDutyTour(info.tour)) cls = 'dc dd'; // dežūra — gaiši zila (ne violeta)
       else if (info.notFound) cls = 'dc dnf';
       else if (info.overnight || (info.prevDayOvernight && info.startTime !== '?' && crossesMidnight(info.startTime, info.endTime))) cls = 'dc dn';
       else if (info.prevDayOvernight) cls = 'dc dp';
@@ -1635,7 +1662,7 @@ function renderCalendar() {
       : null;
     // Mobile has limited height — keep pair note short / hide under extreme panic via CSS
     const pairNote = (info && info.hoursHeldOnPrevDay)
-      ? '<div class="dc-pair-note">→ iepr.</div>'
+      ? '<div class="dc-pair-note">no nakts</div>'
       : (info && info.pairRole === 'start' && info.overnight)
         ? '<div class="dc-pair-note">nakts →</div>'
         : '';
@@ -1708,9 +1735,9 @@ function renderDayDetail() {
   let detailTagClass = 'tag-w';
   let detailTagLabel = 'DARBS';
   if (isOff) { detailTagClass = 'tag-b'; detailTagLabel = 'BRĪVDIENA'; }
-  else if (isDutyCont) { detailTagClass = 'tag-p'; detailTagLabel = 'DEŽŪRA (pāris)'; }
-  else if (isDuty) { detailTagClass = 'tag-n'; detailTagLabel = 'DEŽŪRA 16h'; }
-  else if (info.prevDayOvernight) { detailTagClass = 'tag-p'; detailTagLabel = 'NAKTS (IEPR.)'; }
+  else if (isDutyCont) { detailTagClass = 'tag-d'; detailTagLabel = 'DEŽŪRA (pāris)'; }
+  else if (isDuty) { detailTagClass = 'tag-d'; detailTagLabel = 'DEŽŪRA'; }
+  else if (info.prevDayOvernight) { detailTagClass = 'tag-p'; detailTagLabel = 'no nakts'; }
   else if (info.overnight) { detailTagClass = 'tag-n'; detailTagLabel = 'NAKTS'; }
 
   container.style.display = 'block';
@@ -1743,14 +1770,18 @@ function renderDayDetail() {
       </div>
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <input type="text" id="edit-tour-inp" class="edit-inp" style="flex: 2; min-width: 100px;" value="${escapeHtml(displayTour)}"
-          placeholder="Tūre (piem., 704/59, /71169, b)">
+          placeholder="Tūre (piem., 704/59, /71169, b)"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();updateDayTour(${d},true);}">
         <span style="font-size: 10px; color: var(--text-dim);">no</span>
-        <input type="text" id="edit-start-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.startTime || '')}" placeholder="HH:MM">
+        <input type="text" id="edit-start-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.startTime === '—' || info.startTime === '?' ? '' : (info.startTime || ''))}" placeholder="HH:MM">
         <span style="font-size: 10px; color: var(--text-dim);">līdz</span>
-        <input type="text" id="edit-end-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.endTime || '')}" placeholder="HH:MM">
-        <button class="btn-sm" onclick="updateDayTour(${d})">💾 Saglabāt</button>
+        <input type="text" id="edit-end-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.endTime === '—' || info.endTime === '?' ? '' : (info.endTime || ''))}" placeholder="HH:MM">
+        <button class="btn-sm" onclick="updateDayTour(${d}, true)" title="Saglabā un mēģina aizpildīt laikus no PDF, ja tūre mainīta">💾 Saglabāt</button>
+        <button class="btn-sm" onclick="fillDayFromPdf(${d})" title="Aizpilda šīs dienas laikus no PDF kataloga"
+          style="background: var(--sky-bg); color: var(--sky); border-color: var(--sky-border);">🔄 No PDF</button>
       </div>
-      ${info.notFound ? '<div style="margin-top: 8px; font-size: 10px; color: var(--accent);">⚠ Tūre nav atrasta PDF katalogā</div>' : ''}
+      <div id="day-pdf-hint" style="margin-top: 8px; font-size: 10px; color: var(--text-dim);"></div>
+      ${info.notFound ? '<div style="margin-top: 4px; font-size: 10px; color: var(--accent);">⚠ Tūre nav atrasta PDF katalogā — pievieno PDF vai spied «Atjaunināt laikus no PDF»</div>' : ''}
     </div>`;
 }
 
@@ -2568,37 +2599,45 @@ function clearStorage() {
 // EDIT FROM CALENDAR
 // ═══════════════════════════════════════════════════════════════════════════
 
-function updateDayTour(day) {
-  const inp = document.getElementById('edit-tour-inp');
-  if (!inp || !state.calData) return;
-  const raw = inp.value.trim();
-  if (!raw) return;
+function getPdfCatalog() {
+  return (state.calData && state.calData.pdfTours)
+    || state.pdfTours
+    || {};
+}
 
-  const prevNight = raw.startsWith('/');
-  const cleaned = raw.replace(/^\/\s*/, '').trim();
-  const isOff = cleaned.toLowerCase() === 'b';
+function persistCalendarDayChange() {
+  if (!state.calData) return;
+  recalcOvernight(state.calData.calendar, state.calData.daysInMonth);
+  for (let d = 1; d <= state.calData.daysInMonth; d++) hydrateDutyEntry(state.calData.calendar[d]);
+  if (state._monthsData) {
+    const key = state.calData.year + '-' + String(state.calData.month).padStart(2, '0');
+    if (!state._monthsData[key]) {
+      state._monthsData[key] = {
+        calendar: {},
+        pdfTours: state.calData.pdfTours || {},
+        editSchedule: {}
+      };
+    }
+    state._monthsData[key].calendar = JSON.parse(JSON.stringify(state.calData.calendar));
+    state._monthsData[key].editSchedule = JSON.parse(JSON.stringify(state.editSchedule));
+    if (state.calData.pdfTours) state._monthsData[key].pdfTours = state.calData.pdfTours;
+  }
+  saveState();
+}
 
-  // Also read manual times
-  const startInp = document.getElementById('edit-start-inp');
-  const endInp = document.getElementById('edit-end-inp');
-  const manualStart = startInp ? startInp.value.trim() : '';
-  const manualEnd = endInp ? endInp.value.trim() : '';
+function applyTourToDay(day, tourNorm, prevNight, opts) {
+  opts = opts || {};
+  const preferPdf = opts.preferPdf === true;
+  const forcePdf = opts.forcePdf === true;
+  const manualStart = opts.manualStart || '';
+  const manualEnd = opts.manualEnd || '';
 
-  const tourNorm = isOff ? 'b' : (isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned));
-  const isDutyCont = !isOff && isDutyContinuationTour(tourNorm);
-
-  // Update editSchedule
-  state.editSchedule[day] = {
-    tour: tourNorm,
-    prevNight: isDutyCont ? false : prevNight,
-    dutyContinuation: isDutyCont || undefined,
-    dutyParentDay: isDutyCont ? (day - 1) : undefined
-  };
-
-  // Update calendar data for this day
-  if (isOff) {
+  if (!tourNorm || tourNorm === 'b') {
     state.calData.calendar[day] = { type: 'off' };
-  } else if (isDutyCont) {
+    return { ok: true, source: 'off' };
+  }
+
+  if (isDutyContinuationTour(tourNorm)) {
     state.calData.calendar[day] = {
       type: 'work',
       tour: '-',
@@ -2614,54 +2653,220 @@ function updateDayTour(day) {
       dutyContinuation: true,
       dutyParentDay: day - 1
     };
-  } else {
-    const duty = isDutyTour(tourNorm);
-    const dutyT = duty ? defaultDutyTimes(tourNorm) : null;
-    const dow = getDow(day, state.calData.month, state.calData.year);
-    const variants = state.calData.pdfTours ? lookupTour(state.calData.pdfTours, tourNorm) : null;
-    const v = getBestVariant(variants, dow);
-
-    // Use manual times if provided, otherwise use PDF times, else duty defaults (05:00–21:00 / 16h)
-    const st = manualStart || (v ? v.startTime : (dutyT ? dutyT.startTime : '?'));
-    const et = manualEnd || (v ? v.endTime : (dutyT ? dutyT.endTime : '?'));
-    let hrs = (manualStart && manualEnd)
-      ? calcHours(manualStart, manualEnd)
-      : (v ? (v.hours || calcHours(v.startTime, v.endTime)) : null);
-    if (hrs == null && dutyT) hrs = dutyT.hours;
-
-    state.calData.calendar[day] = {
-      type: 'work',
-      tour: tourNorm,
-      startTime: st,
-      endTime: et,
-      overnight: false,
-      prevDayOvernight: prevNight,
-      baseHours: hrs,
-      hours: hrs,
-      countedHours: hrs,
-      notFound: !variants && !manualStart && !duty,
-      isDuty: duty
-    };
+    return { ok: true, source: 'duty-cont' };
   }
 
-  // Recalculate overnight flags and refresh
-  recalcOvernight(state.calData.calendar, state.calData.daysInMonth);
-  for (let d = 1; d <= state.calData.daysInMonth; d++) hydrateDutyEntry(state.calData.calendar[d]);
-  // Also save to monthsData
-  if (state._monthsData) {
-    const key = state.calData.year + '-' + String(state.calData.month).padStart(2, '0');
-    if (state._monthsData[key]) {
-      state._monthsData[key].calendar = JSON.parse(JSON.stringify(state.calData.calendar));
-      state._monthsData[key].editSchedule = JSON.parse(JSON.stringify(state.editSchedule));
+  const duty = isDutyTour(tourNorm);
+  const dutyT = duty ? defaultDutyTimes(tourNorm) : null;
+  const dow = getDow(day, state.calData.month, state.calData.year);
+  const catalog = getPdfCatalog();
+  const variants = lookupTour(catalog, tourNorm);
+  const v = getBestVariant(variants, dow);
+
+  let st, et, hrs, source, notFound;
+  const hasManual = !!(manualStart && manualEnd && manualStart !== '?' && manualEnd !== '?' && manualStart !== '—');
+
+  if (forcePdf || preferPdf) {
+    if (v) {
+      st = v.startTime; et = v.endTime;
+      hrs = v.hours || calcHours(v.startTime, v.endTime);
+      source = 'pdf'; notFound = false;
+    } else if (dutyT) {
+      st = dutyT.startTime; et = dutyT.endTime; hrs = dutyT.hours;
+      source = 'duty-default'; notFound = false;
+    } else if (hasManual && !forcePdf) {
+      st = manualStart; et = manualEnd; hrs = calcHours(manualStart, manualEnd);
+      source = 'manual'; notFound = true;
+    } else {
+      st = '?'; et = '?'; hrs = null;
+      source = 'missing'; notFound = true;
     }
+  } else if (hasManual) {
+    st = manualStart; et = manualEnd; hrs = calcHours(manualStart, manualEnd);
+    source = 'manual'; notFound = !variants && !duty;
+  } else if (v) {
+    st = v.startTime; et = v.endTime;
+    hrs = v.hours || calcHours(v.startTime, v.endTime);
+    source = 'pdf'; notFound = false;
+  } else if (dutyT) {
+    st = dutyT.startTime; et = dutyT.endTime; hrs = dutyT.hours;
+    source = 'duty-default'; notFound = false;
+  } else {
+    st = '?'; et = '?'; hrs = null;
+    source = 'missing'; notFound = true;
   }
-  saveState();
-  // Force full re-render
+
+  state.calData.calendar[day] = {
+    type: 'work',
+    tour: tourNorm,
+    startTime: st,
+    endTime: et,
+    overnight: false,
+    prevDayOvernight: prevNight,
+    baseHours: hrs,
+    hours: hrs,
+    countedHours: hrs,
+    notFound: notFound,
+    isDuty: duty
+  };
+  return { ok: !notFound || duty || hasManual, source: source, notFound: notFound };
+}
+
+function updateDayTour(day, preferPdfIfTourChanged) {
+  const inp = document.getElementById('edit-tour-inp');
+  if (!inp || !state.calData) return;
+  const raw = inp.value.trim();
+  if (!raw) return;
+
+  const prevNight = raw.startsWith('/');
+  const cleaned = raw.replace(/^\/\s*/, '').trim();
+  const isOff = cleaned.toLowerCase() === 'b';
+  const tourNorm = isOff ? 'b' : (isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned));
+  const isDutyCont = !isOff && isDutyContinuationTour(tourNorm);
+
+  const startInp = document.getElementById('edit-start-inp');
+  const endInp = document.getElementById('edit-end-inp');
+  const manualStart = startInp ? startInp.value.trim() : '';
+  const manualEnd = endInp ? endInp.value.trim() : '';
+
+  const old = state.calData.calendar[day] || {};
+  const oldTour = old.type === 'off' ? 'b' : (old.tour || '');
+  const tourChanged = String(oldTour) !== String(tourNorm)
+    || !!(old.prevDayOvernight) !== (!isDutyCont && prevNight);
+
+  state.editSchedule[day] = {
+    tour: tourNorm,
+    prevNight: isDutyCont ? false : prevNight,
+    dutyContinuation: isDutyCont || undefined,
+    dutyParentDay: isDutyCont ? (day - 1) : undefined
+  };
+
+  const result = applyTourToDay(day, tourNorm, isDutyCont ? false : prevNight, {
+    preferPdf: !!(preferPdfIfTourChanged && tourChanged),
+    forcePdf: false,
+    manualStart: manualStart,
+    manualEnd: manualEnd
+  });
+
+  persistCalendarDayChange();
   renderCalendar();
-  // Re-select the day to show updated detail
   if (state.selectedDay === day) {
     state.selectedDay = null;
-    setTimeout(() => { state.selectedDay = day; renderCalendar(); }, 50);
+    setTimeout(() => {
+      state.selectedDay = day;
+      renderCalendar();
+      const hint = document.getElementById('day-pdf-hint');
+      if (hint) {
+        if (result.source === 'pdf') hint.textContent = '✓ Laiki no PDF kataloga';
+        else if (result.source === 'duty-default') hint.textContent = '✓ Dežūras noklusējuma laiki';
+        else if (result.notFound) hint.textContent = '⚠ PDF katalogā nav šīs tūres — pievieno PDF vai ievadi laikus manuāli';
+        else if (result.source === 'manual') hint.textContent = '✓ Saglabāts ar manuāliem laikiem';
+        else hint.textContent = '✓ Saglabāts';
+        hint.style.color = result.notFound ? 'var(--accent)' : 'var(--green)';
+      }
+    }, 40);
+  }
+}
+
+function fillDayFromPdf(day) {
+  if (!state.calData) return;
+  const inp = document.getElementById('edit-tour-inp');
+  let tourNorm, prevNight;
+  if (inp && inp.value.trim()) {
+    const raw = inp.value.trim();
+    prevNight = raw.startsWith('/');
+    const cleaned = raw.replace(/^\/\s*/, '').trim();
+    if (cleaned.toLowerCase() === 'b') {
+      const hint = document.getElementById('day-pdf-hint');
+      if (hint) { hint.textContent = 'Brīvdienai nav PDF laiku'; hint.style.color = 'var(--text-dim)'; }
+      return;
+    }
+    tourNorm = isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned);
+  } else {
+    const info = state.calData.calendar[day];
+    if (!info || info.type === 'off') return;
+    tourNorm = info.tour;
+    prevNight = !!info.prevDayOvernight;
+  }
+
+  const isDutyCont = isDutyContinuationTour(tourNorm);
+  state.editSchedule[day] = {
+    tour: tourNorm,
+    prevNight: isDutyCont ? false : prevNight,
+    dutyContinuation: isDutyCont || undefined,
+    dutyParentDay: isDutyCont ? (day - 1) : undefined
+  };
+
+  const result = applyTourToDay(day, tourNorm, isDutyCont ? false : prevNight, { forcePdf: true });
+  persistCalendarDayChange();
+  const keep = day;
+  state.selectedDay = null;
+  renderCalendar();
+  setTimeout(() => {
+    state.selectedDay = keep;
+    renderCalendar();
+    const hint = document.getElementById('day-pdf-hint');
+    if (!hint) return;
+    if (result.source === 'pdf') {
+      hint.textContent = '✓ Laiki aizpildīti no PDF';
+      hint.style.color = 'var(--green)';
+    } else if (result.source === 'duty-default') {
+      hint.textContent = '✓ Dežūra — noklusējuma laiki (PDF nav vajadzīgs)';
+      hint.style.color = 'var(--sky)';
+    } else {
+      const n = Object.keys(getPdfCatalog()).length;
+      hint.textContent = n
+        ? '⚠ Tūre nav PDF katalogā (' + n + ' tūres ielādētas) — pievieno pareizo PDF'
+        : '⚠ Nav ielādēta neviena PDF — spied «+ PIEVIENOT PDF FAILUS»';
+      hint.style.color = 'var(--accent)';
+    }
+  }, 40);
+}
+
+function refreshAllFromPdf() {
+  if (!state.calData) return;
+  const catalog = getPdfCatalog();
+  const nCat = Object.keys(catalog).length;
+  const hint = document.getElementById('extra-pdf-hint');
+  if (!nCat) {
+    if (hint) {
+      hint.textContent = 'Nav PDF kataloga — vispirms pievieno tūru PDF';
+      hint.style.color = 'var(--accent)';
+      setTimeout(() => { hint.textContent = ''; hint.style.color = ''; }, 5000);
+    }
+    return;
+  }
+
+  const dim = state.calData.daysInMonth;
+  let fixed = 0, missing = 0;
+  for (let d = 1; d <= dim; d++) {
+    const info = state.calData.calendar[d];
+    if (!info || info.type !== 'work') continue;
+    if (info.dutyContinuation || isDutyContinuationTour(info.tour)) continue;
+
+    const sched = state.editSchedule[d] || {
+      tour: info.tour,
+      prevNight: !!info.prevDayOvernight
+    };
+    const tourNorm = sched.tour || info.tour;
+    if (!tourNorm || tourNorm === 'b') continue;
+    if (isDutyTour(tourNorm)) {
+      // refresh duty defaults too
+      const r = applyTourToDay(d, tourNorm, false, { forcePdf: true });
+      if (r.source === 'duty-default') fixed++;
+      continue;
+    }
+    const r = applyTourToDay(d, tourNorm, !!sched.prevNight, { forcePdf: true });
+    if (r.source === 'pdf') fixed++;
+    else if (r.notFound) missing++;
+  }
+
+  persistCalendarDayChange();
+  renderCalendar();
+  if (hint) {
+    hint.textContent = `✓ Atjauninātas ${fixed} dienas no PDF` + (missing ? `, ${missing} joprojām nav katalogā` : '');
+    hint.style.color = missing ? 'var(--accent)' : 'var(--green)';
+    setTimeout(() => { hint.textContent = ''; hint.style.color = ''; }, 6000);
   }
 }
 
@@ -2682,26 +2887,20 @@ async function addExtraPdfs(fileList) {
     const hint2 = document.getElementById('extra-pdf-hint');
     hint2.textContent = `✓ Pievienotas ${Object.keys(newTours).length} tūres`;
 
-    // Re-resolve all notFound tours
+    // Re-resolve work days that were missing / still '?' from the merged catalog
     const dim = state.calData.daysInMonth;
     let fixed = 0;
     for (let d = 1; d <= dim; d++) {
       const info = state.calData.calendar[d];
-      if (info.type === 'work' && info.notFound) {
-        const dow = getDow(d, state.calData.month, state.calData.year);
-        const variants = lookupTour(state.calData.pdfTours, info.tour);
-        if (variants) {
-          const v = getBestVariant(variants, dow);
-          info.startTime = v.startTime;
-          info.endTime = v.endTime;
-          info.hours = v.hours || calcHours(v.startTime, v.endTime);
-          info.notFound = false;
-          fixed++;
-        }
-      }
+      if (!info || info.type !== 'work') continue;
+      if (info.dutyContinuation || isDutyContinuationTour(info.tour)) continue;
+      if (isDutyTour(info.tour)) continue;
+      if (!(info.notFound || info.startTime === '?' || !info.startTime)) continue;
+      const sched = state.editSchedule[d] || { tour: info.tour, prevNight: !!info.prevDayOvernight };
+      const r = applyTourToDay(d, sched.tour || info.tour, !!sched.prevNight, { forcePdf: true });
+      if (r.source === 'pdf') fixed++;
     }
-    recalcOvernight(state.calData.calendar, dim);
-    saveState();
+    persistCalendarDayChange();
     renderCalendar();
     if (fixed > 0) hint2.textContent += `, izlabotas ${fixed} tūres`;
     setTimeout(() => { hint2.textContent = ''; }, 5000);
@@ -2715,38 +2914,31 @@ async function addExtraPdfs(fileList) {
 // HERMES INTEGRATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-function copyHermesPrompt() {
-  const prompt = `Izlasiet šo darba grafika bildi un atgrieziet TIKAI tabulu šādā formātā:
-
+function getGeminiPromptText() {
+  return `Lūdzu nolasi šo darba grafika bildi un izvadi tabulu šādā formātā:
 1: /70174
 2: b
-3: D
-4: -
-5: 7117
+3: 7117
 ...
+Kur "/" pirms numura nozīmē naktsmainis (darbs sākas iepriekšējā dienā),
+"b" = brīvdiena, "D" = dežūra 16h (05:00–21:00), "D10" = dežūra 10h.
+Ja dežūru seko svītra "-" nākamajā dienā — to arī izvadi kā "-" (nevis tūres nr.).
+Tūres numuri ir 4-5 ciparu skaitļi (piem., 5001, 7117, 701/74).
+Neraksti neko citu, tikai šo tabulu.`;
+}
 
-Kur:
-- "/" pirms numura = naktsmainis (darbs sākas iepriekšējā dienā)
-- "b" = brīvdiena
-- "D" = dežūra 16h (05:00–21:00); "D10" = dežūra 10h
-- "-" = dežūras otrā diena (svītra/apaļā līnija zem nākamā datuma pēc D) — NE aizstāj ar tūres nr.
-- Tūres numuri ir 4-5 ciparu skaitļi (piem., 5001, 5117, 701/74)
-- NERAKSTI neko citu, tikai tabulu. Bez paskaidrojumiem.`;
-
-  // Try modern clipboard API first
+function copyGeminiPrompt() {
+  const prompt = getGeminiPromptText();
+  const btn = document.getElementById('btn-copy-gemini');
+  const done = () => showGeminiCopied(btn);
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(prompt).then(() => {
-      showHermesCopied();
-    }).catch(() => {
-      fallbackCopy(prompt);
-    });
+    navigator.clipboard.writeText(prompt).then(done).catch(() => fallbackCopy(prompt, done));
   } else {
-    fallbackCopy(prompt);
+    fallbackCopy(prompt, done);
   }
 }
 
-function fallbackCopy(text) {
-  // Fallback for file:// or older browsers
+function fallbackCopy(text, onSuccess) {
   const ta = document.createElement('textarea');
   ta.value = text;
   ta.style.position = 'fixed';
@@ -2757,18 +2949,28 @@ function fallbackCopy(text) {
   ta.select();
   try {
     document.execCommand('copy');
-    showHermesCopied();
+    if (onSuccess) onSuccess();
   } catch (e) {
-    // Last resort: show in a modal the user can manually copy
     alert('Prompt (nokopē manuāli):\n\n' + text);
   }
   document.body.removeChild(ta);
 }
 
-function showHermesCopied() {
-  const el = document.getElementById('hermes-copied');
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 3000);
+function showGeminiCopied(btn) {
+  const el = document.getElementById('gemini-copied');
+  if (el) {
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  }
+  if (btn) {
+    const prev = btn.innerHTML;
+    btn.classList.add('copied');
+    btn.innerHTML = '✓ NOKOPĒTS';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = prev;
+    }, 2000);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
