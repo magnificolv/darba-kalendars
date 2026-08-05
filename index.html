@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Darba Kalendārs v3.6 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.6.1 — Vilciena Konduktors</title>
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
    DARBA KALENDĀRS v3.6 — Dark Theme
@@ -21,9 +21,10 @@
   --text-muted: #4a4d5a;
   --accent: #f59e0b;
   --accent-hover: #fbbf24;
-  --blue: #93c5fd;
-  --blue-bg: #1a2035;
-  --blue-border: #2a3a5c;
+  /* Dienas tūres — gaišāks zils, skaidri atšķiras no nakts violetā */
+  --blue: #bfdbfe;
+  --blue-bg: #163456;
+  --blue-border: #3b82f6;
   --purple: #a78bfa;
   --purple-bg: #1f1535;
   --purple-border: #3b2a5c;
@@ -109,9 +110,9 @@ select {
   transition: all .15s; position: relative; border: 1px solid transparent; user-select: none;
 }
 .dc:hover { transform: scale(1.05); z-index: 10; }
-.dw { background: var(--blue-bg); border-color: var(--blue-border); }
-.dw:hover { border-color: #3b82f6; box-shadow: 0 0 14px rgba(59,130,246,.3); }
-.dn { background: var(--purple-bg); border-color: var(--purple-border); }
+.dw { background: var(--blue-bg); border-color: var(--blue-border); } /* Dienas */
+.dw:hover { border-color: #60a5fa; box-shadow: 0 0 14px rgba(96,165,250,.4); }
+.dn { background: var(--purple-bg); border-color: var(--purple-border); } /* Uz nakti */
 .dn:hover { border-color: #8b5cf6; box-shadow: 0 0 14px rgba(139,92,246,.3); }
 .dp { background: var(--green-bg); border-color: var(--green-border); }
 .dp:hover { border-color: #22c55e; box-shadow: 0 0 14px rgba(34,197,94,.3); }
@@ -120,7 +121,7 @@ select {
 .dnf { background: var(--orange-bg); border-color: var(--orange-border); }
 .dd { background: var(--sky-bg); border-color: var(--sky-border); }
 .dd:hover { border-color: #38bdf8; box-shadow: 0 0 14px rgba(56,189,248,.35); }
-.sel.dw { border-color: #3b82f6 !important; box-shadow: 0 0 20px rgba(59,130,246,.5) !important; }
+.sel.dw { border-color: #60a5fa !important; box-shadow: 0 0 20px rgba(96,165,250,.55) !important; }
 .sel.dn { border-color: #8b5cf6 !important; box-shadow: 0 0 20px rgba(139,92,246,.5) !important; }
 .sel.dp { border-color: #22c55e !important; box-shadow: 0 0 20px rgba(34,197,94,.5) !important; }
 .sel.dd { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,.5) !important; }
@@ -552,13 +553,14 @@ select {
         </button>
       </div>
       <div class="code-box" id="gemini-prompt-text">
-        Lūdzu nolasi šo darba grafika bildi un izvadi tabulu šādā formātā:<br>
-        1: /70174<br>2: b<br>3: 7117<br>...<br>
-        Kur "/" pirms numura nozīmē naktsmainis (darbs sākas iepriekšējā dienā),<br>
-        "b" = brīvdiena, "D" = dežūra 16h (05:00–21:00), "D10" = dežūra 10h.<br>
-        Ja dežūru seko svītra "-" nākamajā dienā — to arī izvadi kā "-" (nevis tūres nr.).<br>
-        Tūres numuri ir 4-5 ciparu skaitļi (piem., 5001, 7117, 701/74).<br>
-        Neraksti neko citu, tikai šo tabulu.
+        Nolasi darba grafika bildi. Izvadi TIKAI tabulu šādā formātā:<br>
+        1: /70174<br>
+        2: b<br>
+        3: 7117<br>
+        ...<br>
+        <br>
+        /numurs = nakts (sākas iepriekšējā dienā)<br>
+        b = brīvdiena · D = dežūra 16h · D10 = dežūra 10h · - = dežūras turpinājums
       </div>
       <div id="gemini-copied" style="display:none; margin-top: 8px; font-size: 11px; color: var(--green);">
         ✓ Prompt nokopēts! Ielīmē to savā AI čatā kopā ar grafika bildi.
@@ -738,8 +740,8 @@ select {
         </div>
         <div class="legend" title="Tikai leģenda — nav filtri">
           <div class="legend-title">LEĢENDA</div>
-          <span class="tg tag-w">Uz nakti</span>
-          <span class="tg tag-n">Nakts</span>
+          <span class="tg tag-w">Dienas</span>
+          <span class="tg tag-n">Uz nakti</span>
           <span class="tg tag-p">no nakts</span>
           <span class="tg tag-d">Dežūra</span>
           <span class="tg tag-b">Brīvdiena</span>
@@ -1625,12 +1627,13 @@ function renderCalendar() {
     let bodyHtml = '';
 
     if (info && info.type === 'work') {
-      if (info.dutyContinuation || isDutyContinuationTour(info.tour)) cls = 'dc dd'; // dežūras 2. diena — gaiši zila
-      else if (info.isDuty || isDutyTour(info.tour)) cls = 'dc dd'; // dežūra — gaiši zila (ne violeta)
+      if (info.dutyContinuation || isDutyContinuationTour(info.tour)) cls = 'dc dd'; // dežūras 2. diena — sky
+      else if (info.isDuty || isDutyTour(info.tour)) cls = 'dc dd'; // dežūra — sky (ne violeta)
       else if (info.notFound) cls = 'dc dnf';
-      else if (info.overnight || (info.prevDayOvernight && info.startTime !== '?' && crossesMidnight(info.startTime, info.endTime))) cls = 'dc dn';
-      else if (info.prevDayOvernight) cls = 'dc dp';
-      else cls = 'dc dw';
+      // no nakts (pāra beigas) PIRMS uz-nakti — citādi end diena ar 20:xx–07:xx kļūdaini paliek violeta
+      else if (info.hoursHeldOnPrevDay || info.pairRole === 'end' || (info.prevDayOvernight && !info.overnight)) cls = 'dc dp';
+      else if (info.overnight || info.pairRole === 'start') cls = 'dc dn'; // uz nakti
+      else cls = 'dc dw'; // dienas tūre
 
       label = info.dutyContinuation ? 'D→' : (info.tour || '');
       // Stack start / end times (Claude-like). Prefer start over "beidzas".
@@ -1731,12 +1734,14 @@ function renderDayDetail() {
   const isDuty = info.isDuty || isDutyTour(info.tour);
   const isDutyCont = info.dutyContinuation || isDutyContinuationTour(info.tour);
   let detailTagClass = 'tag-w';
-  let detailTagLabel = 'DARBS';
+  let detailTagLabel = 'DIENAS';
   if (isOff) { detailTagClass = 'tag-b'; detailTagLabel = 'BRĪVDIENA'; }
   else if (isDutyCont) { detailTagClass = 'tag-d'; detailTagLabel = 'DEŽŪRA (pāris)'; }
   else if (isDuty) { detailTagClass = 'tag-d'; detailTagLabel = 'DEŽŪRA'; }
-  else if (info.prevDayOvernight) { detailTagClass = 'tag-p'; detailTagLabel = 'no nakts'; }
-  else if (info.overnight) { detailTagClass = 'tag-n'; detailTagLabel = 'NAKTS'; }
+  else if (info.hoursHeldOnPrevDay || info.pairRole === 'end' || (info.prevDayOvernight && !info.overnight)) {
+    detailTagClass = 'tag-p'; detailTagLabel = 'no nakts';
+  }
+  else if (info.overnight || info.pairRole === 'start') { detailTagClass = 'tag-n'; detailTagLabel = 'UZ NAKTI'; }
 
   container.style.display = 'block';
   container.innerHTML = `
@@ -2881,16 +2886,17 @@ async function addExtraPdfs(fileList) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function getGeminiPromptText() {
-  return `Lūdzu nolasi šo darba grafika bildi un izvadi tabulu šādā formātā:
+  return `Nolasi darba grafika bildi. Izvadi TIKAI tabulu šādā formātā:
 1: /70174
 2: b
 3: 7117
 ...
-Kur "/" pirms numura nozīmē naktsmainis (darbs sākas iepriekšējā dienā),
-"b" = brīvdiena, "D" = dežūra 16h (05:00–21:00), "D10" = dežūra 10h.
-Ja dežūru seko svītra "-" nākamajā dienā — to arī izvadi kā "-" (nevis tūres nr.).
-Tūres numuri ir 4-5 ciparu skaitļi (piem., 5001, 7117, 701/74).
-Neraksti neko citu, tikai šo tabulu.`;
+
+/numurs = nakts (sākas iepriekšējā dienā)
+b = brīvdiena
+D = dežūra 16h
+D10 = dežūra 10h
+- = dežūras turpinājums`;
 }
 
 function copyGeminiPrompt() {
