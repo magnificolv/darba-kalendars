@@ -1256,11 +1256,10 @@ function crossesMidnight(start, end) {
 
 /**
  * Darba dienas veids pēc "/" notācijas (ne pēc pulksteņa nakts stundām):
- * - no-nakts: "/" PRIEKŠĀ (/T, /703/58) — rīts no viesnīcas / pēc bez-atpūtas
- * - uz-nakti: "/" BEIGĀS (T/, 7214/) VAI nākamā diena ar "/" priekšā — viesnīcas komandējums
- * - bez-atputas: nepārtraukta tūre, vienāds nr. abās dienās
- * - dienas: bez "/" pāra — beidz un ej mājās
- * - notFound NEAIZĒNO krāsu: manuāls T/ ar laikiem joprojām uz-nakti/no-nakts
+ * - bez-atputas: nepārtraukta tūre — ABAS dienas violetas (start + end)
+ * - no-nakts: "/" PRIEKŠĀ pēc viesnīcas (uz nakti), NE pēc bez-atpūtas
+ * - uz-nakti: "/" BEIGĀS vai nākamā ar "/" priekšā — viesnīca
+ * - dienas: bez "/" pāra — mājās
  */
 function getWorkDayKind(info, nextInfo) {
   if (!info || info.type !== 'work') return 'off';
@@ -1270,18 +1269,24 @@ function getWorkDayKind(info, nextInfo) {
   const cur = extractSlashFlags(info);
   const nextFlags = (nextInfo && nextInfo.type === 'work') ? extractSlashFlags(nextInfo) : null;
 
-  // no nakts — "/" priekšā
-  if (cur.prevNight || info.hoursHeldOnPrevDay || info.pairRole === 'end') return 'no-nakts';
+  // Bez atpūtas — ABAS pāra dienas violetas (ne end=zaļš)
+  if (
+    info.overnight ||
+    info.pairRole === 'start' ||
+    info.pairRole === 'end' ||
+    info.hoursHeldOnPrevDay
+  ) {
+    return 'bez-atputas';
+  }
 
-  // Bez atpūtas — nepārtraukta tūre (same nr. cauri naktij)
-  if (info.overnight || info.pairRole === 'start') return 'bez-atputas';
+  // no nakts — rīts ar "/" pēc viesnīcas komandējuma (nav continuous pair)
+  if (cur.prevNight) return 'no-nakts';
 
   const nextFromNight = !!(nextFlags && (
     nextFlags.prevNight || nextInfo.hoursHeldOnPrevDay || nextInfo.pairRole === 'end'
   ));
 
-  // Explicit trailing "/" on this day OR next day starts with "/"
-  // (Bez atpūtas jau noķerts caur overnight/pairRole — te tikai viesnīcas komandējums)
+  // Uz nakti — trailing "/" vai nākamā diena no nakts/viesnīcas
   if (cur.goesOvernight || nextFromNight) return 'uz-nakti';
 
   return 'dienas';
@@ -1802,16 +1807,20 @@ function renderCalendar() {
     const shownHours = info && info.type === 'work'
       ? (info.countedHours != null ? info.countedHours : info.hours)
       : null;
-    // Pair notes: no nakts | bez atpūtas sākums | uz nakti (viesnīca) sākums
+    // Pair notes
     const nextInfoNote = (info && info.type === 'work' && d < dim) ? calendar[d + 1] : null;
     const kindNote = info && info.type === 'work' ? getWorkDayKind(info, nextInfoNote) : null;
-    const pairNote = (kindNote === 'no-nakts' && (info.hoursHeldOnPrevDay || info.prevDayOvernight || info.pairRole === 'end'))
-      ? '<div class="dc-pair-note">no nakts</div>'
-      : (kindNote === 'bez-atputas')
-        ? '<div class="dc-pair-note">bez atp. →</div>'
-        : (kindNote === 'uz-nakti')
-          ? '<div class="dc-pair-note">uz nakti →</div>'
-          : '';
+    let pairNote = '';
+    if (kindNote === 'bez-atputas') {
+      const isEnd = info.pairRole === 'end' || info.hoursHeldOnPrevDay;
+      pairNote = isEnd
+        ? '<div class="dc-pair-note">bez atp.</div>'
+        : '<div class="dc-pair-note">bez atp. →</div>';
+    } else if (kindNote === 'no-nakts') {
+      pairNote = '<div class="dc-pair-note">no nakts</div>';
+    } else if (kindNote === 'uz-nakti') {
+      pairNote = '<div class="dc-pair-note">uz nakti →</div>';
+    }
 
     if (isOff) {
       bodyHtml = `<div class="dc-off-label">Brīvs</div>`;
