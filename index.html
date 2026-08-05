@@ -856,11 +856,13 @@ function isDutyContinuationTour(tour) {
 
 // Fill missing D/D10 hours/times for display + separate DEŽŪRAS box.
 // IMPORTANT: dežūras stundas NEIESKAITA KOPĀ — tikai atsevišķi (Magnifico rule).
+// dutyStandby = izsaukums no dežūras: tūre + ķeksītis → dež. stundas = 05:00→tūres sākums.
 function hydrateDutyEntry(info) {
   if (!info || info.type !== 'work') return info;
   if (info.dutyContinuation || isDutyContinuationTour(info.tour)) {
     info.isDuty = true;
     info.dutyContinuation = true;
+    info.dutyStandby = false;
     info.baseHours = 0;
     info.hours = 0;
     info.countedHours = 0;
@@ -868,34 +870,50 @@ function hydrateDutyEntry(info) {
     if (!info.endTime || info.endTime === '?') info.endTime = '—';
     return info;
   }
-  if (!isDutyTour(info.tour)) return info;
-
-  info.isDuty = true;
-  const dutyT = defaultDutyTimes(info.tour);
-  if (dutyT) {
-    if (!info.startTime || info.startTime === '?' || info.startTime === '—') info.startTime = dutyT.startTime;
-    if (!info.endTime || info.endTime === '?' || info.endTime === '—') info.endTime = dutyT.endTime;
+  // Pure D/D10 (nav izsaukta tūre)
+  if (isDutyTour(info.tour)) {
+    info.isDuty = true;
+    info.dutyStandby = false;
+    const dutyT = defaultDutyTimes(info.tour);
+    if (dutyT) {
+      if (!info.startTime || info.startTime === '?' || info.startTime === '—') info.startTime = dutyT.startTime;
+      if (!info.endTime || info.endTime === '?' || info.endTime === '—') info.endTime = dutyT.endTime;
+    }
+    const rawH = (info.countedHours != null ? info.countedHours : info.hours);
+    const missing = rawH == null || rawH === '' || Number.isNaN(Number(rawH)) || Number(rawH) === 0;
+    if (missing && dutyT) {
+      info.baseHours = dutyT.hours;
+      info.hours = dutyT.hours;
+      info.countedHours = dutyT.hours;
+    } else if (info.baseHours == null && rawH != null) {
+      info.baseHours = Number(rawH);
+      if (info.countedHours == null) info.countedHours = Number(rawH);
+    }
+    return info;
   }
-
-  const rawH = (info.countedHours != null ? info.countedHours : info.hours);
-  const missing = rawH == null || rawH === '' || Number.isNaN(Number(rawH)) || Number(rawH) === 0;
-  if (missing && dutyT) {
-    info.baseHours = dutyT.hours;
-    info.hours = dutyT.hours;
-    info.countedHours = dutyT.hours;
-  } else if (info.baseHours == null && rawH != null) {
-    info.baseHours = Number(rawH);
-    if (info.countedHours == null) info.countedHours = Number(rawH);
-  }
+  // Parasta tūre (ar vai bez dežūras izsaukuma ķeksīša)
+  if (!info.dutyStandby) info.isDuty = false;
   return info;
 }
 
-// Hours that go into KOPĀ STUNDAS — EXCLUDES dežūras (D/D10) and duty continuation "-".
+/** Dežūras stundas no 05:00 līdz tūres sākumam (izsaukuma diena). */
+function calcDutyStandbyHours(tourStart, dutyStart) {
+  const ds = dutyStart || '05:00';
+  if (!tourStart || !/^\d{1,2}:\d{2}$/.test(String(tourStart))) return 0;
+  if (!/^\d{1,2}:\d{2}$/.test(String(ds))) return 0;
+  const h = calcHours(ds, tourStart);
+  if (h == null || Number.isNaN(h) || h <= 0) return 0;
+  // ja tūre sākas pirms dež. sākuma vai >16h — clamp
+  return Math.min(h, 16);
+}
+
+// Hours that go into KOPĀ STUNDAS — EXCLUDES pure D/D10 and duty continuation.
+// Tour day WITH dutyStandby: tour hours STILL count in KOPĀ.
 function resolveWorkHours(info) {
   if (!info || info.type !== 'work') return 0;
   hydrateDutyEntry(info);
   if (info.dutyContinuation || isDutyContinuationTour(info.tour)) return 0;
-  if (isDutyTour(info.tour) || info.isDuty) return 0; // dežūra only in DEŽŪRAS box
+  if (isDutyTour(info.tour)) return 0; // tīra dežūra — tikai DEŽŪRAS kastē
   if (info.pairRole === 'end' && (info.countedHours === 0 || info.hoursHeldOnPrevDay)) return 0;
   const h = (info.countedHours != null ? info.countedHours : info.hours);
   if (h == null || Number.isNaN(Number(h))) return 0;
@@ -903,14 +921,26 @@ function resolveWorkHours(info) {
 }
 
 // Hours only for separate DEŽŪRAS sum (not part of KOPĀ).
+// - pure D/D10 → full default hours
+// - dutyStandby + tour → 05:00 → tour start
 function resolveDutyHours(info) {
   if (!info || info.type !== 'work') return 0;
   hydrateDutyEntry(info);
   if (info.dutyContinuation || isDutyContinuationTour(info.tour)) return 0;
-  if (!isDutyTour(info.tour) && !info.isDuty) return 0;
-  const h = (info.countedHours != null ? info.countedHours : info.hours);
-  if (h == null || Number.isNaN(Number(h))) return 0;
-  return Number(h);
+
+  // Tīra dežūra (D / D10)
+  if (isDutyTour(info.tour)) {
+    const h = (info.countedHours != null ? info.countedHours : info.hours);
+    if (h == null || Number.isNaN(Number(h))) return 0;
+    return Number(h);
+  }
+
+  // Izsaukums no dežūras: ķeksītis + tūre ar sākuma laiku
+  if (info.dutyStandby && hasUsableTimes(info)) {
+    return calcDutyStandbyHours(info.startTime, info.dutyStartTime || '05:00');
+  }
+
+  return 0;
 }
 
 const OCR_STORAGE_KEY = 'darba-kalendars-ocr-v1';
@@ -1677,6 +1707,7 @@ async function buildCalendar() {
         overnight: false,
         prevDayOvernight: prevN,
         goesOvernight: goesOut,
+        dutyStandby: !duty && entry.dutyStandby === true,
         baseHours: hrs,
         hours: hrs,
         countedHours: hrs,
@@ -1865,6 +1896,13 @@ function renderCalendar() {
     } else if (kindForBody === 'uz-nakti') {
       pairNote = '<div class="dc-pair-note">uz nakti →</div>';
     }
+    if (info && info.dutyStandby && kindForBody !== 'duty' && kindForBody !== 'duty-cont') {
+      const dh = resolveDutyHours(info);
+      const dutyBit = dh > 0
+        ? `<div class="dc-pair-note" style="color:var(--teal);">dež. ${dh.toFixed(1)}h</div>`
+        : '<div class="dc-pair-note" style="color:var(--teal);">dež.</div>';
+      pairNote = (pairNote || '') + dutyBit;
+    }
 
     if (isOff) {
       bodyHtml = `<div class="dc-off-label">Brīvs</div>`;
@@ -1979,15 +2017,45 @@ function renderDayDetail() {
         <input type="text" id="edit-start-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.startTime === '—' || info.startTime === '?' ? '' : (info.startTime || ''))}" placeholder="HH:MM">
         <span style="font-size: 10px; color: var(--text-dim);">līdz</span>
         <input type="text" id="edit-end-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.endTime === '—' || info.endTime === '?' ? '' : (info.endTime || ''))}" placeholder="HH:MM">
+        <label id="duty-standby-label" style="display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--teal); cursor:pointer; user-select:none; padding:6px 10px; border:1px solid var(--teal-border); border-radius:6px; background:var(--teal-bg);"
+          title="Izsaukums no dežūras: 05:00 → tūres sākums = dežūras stundas (neiet KOPĀ)">
+          <input type="checkbox" id="edit-duty-standby" ${info.dutyStandby ? 'checked' : ''} style="accent-color:#2dd4bf; width:15px; height:15px;">
+          Dežūra
+        </label>
         <button class="btn-sm" onclick="updateDayTour(${d}, true)" title="Saglabā un mēģina aizpildīt laikus no PDF, ja tūre mainīta">💾 Saglabāt</button>
         <button class="btn-sm" onclick="fillDayFromPdf(${d})" title="Aizpilda šīs dienas laikus no PDF kataloga"
           style="background: var(--sky-bg); color: var(--sky); border-color: var(--sky-border);">🔄 No PDF</button>
+      </div>
+      <div id="duty-standby-hint" style="margin-top: 6px; font-size: 10px; color: var(--teal); ${info.dutyStandby && hasUsableTimes(info) ? '' : 'display:none;'}">
+        Dežūra 05:00 → ${hasUsableTimes(info) ? escapeHtml(info.startTime) : 'tūres sākums'} = <b>${(info.dutyStandby && hasUsableTimes(info) ? calcDutyStandbyHours(info.startTime).toFixed(1) : '0.0')}h</b> (DEŽŪRAS kastē, ne KOPĀ). Tūres stundas joprojām KOPĀ.
       </div>
       <div id="day-pdf-hint" style="margin-top: 8px; font-size: 10px; color: var(--text-dim);"></div>
       ${kind === 'note' ? '<div style="margin-top: 4px; font-size: 10px; color: var(--orange);">Oranžā piezīme — nav tūre. Ciparu tūrei + laikiem darbojas krāsu loģika.</div>' : ''}
       ${kind === 'notfound' ? '<div style="margin-top: 4px; font-size: 10px; color: var(--orange);">Nav PDF — ievadi laikus manuāli, lai parādītos kā darba diena (dienas / uz nakti).</div>' : ''}
       ${kind !== 'note' && kind !== 'notfound' && info.notFound && hasUsableTimes(info) ? '<div style="margin-top: 4px; font-size: 10px; color: var(--text-dim);">Manuāli laiki (tūre nav PDF katalogā) — OK.</div>' : ''}
     </div>`;
+  // Live hint when toggling checkbox / editing start time
+  setTimeout(() => {
+    const cb = document.getElementById('edit-duty-standby');
+    const startInp = document.getElementById('edit-start-inp');
+    const hint = document.getElementById('duty-standby-hint');
+    function refreshDutyHint() {
+      if (!hint || !cb) return;
+      const st = startInp ? startInp.value.trim() : '';
+      if (cb.checked && /^\d{1,2}:\d{2}$/.test(st)) {
+        const h = calcDutyStandbyHours(st);
+        hint.style.display = '';
+        hint.innerHTML = `Dežūra 05:00 → ${escapeHtml(st)} = <b>${h.toFixed(1)}h</b> (DEŽŪRAS kastē, ne KOPĀ). Tūres stundas joprojām KOPĀ.`;
+      } else if (cb.checked) {
+        hint.style.display = '';
+        hint.innerHTML = 'Dežūra ķeksītis ON — ievadi tūres <b>sākuma</b> laiku (dež. stundas = 05:00 → sākums).';
+      } else {
+        hint.style.display = 'none';
+      }
+    }
+    if (cb) cb.addEventListener('change', refreshDutyHint);
+    if (startInp) startInp.addEventListener('input', refreshDutyHint);
+  }, 0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2259,7 +2327,12 @@ function showHoursBreakdown() {
           <div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--teal);">${duty.toFixed(1)}h</div>
         </div>
       </div>
-      ${dutyDays.length > 0 ? `<div style="font-size: 10px; color: var(--teal); margin-bottom: 4px;">Dežūras: ${dutyDays.map(d => d + '. ' + MONTH_LV[state.calData.month].slice(0,3)).join(', ')} (${dutyDays.length} ${dutyDays.length === 1 ? 'diena' : 'dienas'} x ${dutyDays.length > 0 ? ((duty / dutyDays.length) || 0).toFixed(0) : 0}h)</div>` : ''}
+      ${dutyDays.length > 0 ? `<div style="font-size: 10px; color: var(--teal); margin-bottom: 4px;">Dežūras: ${dutyDays.map(d => {
+        const inf = cal[d];
+        const h = resolveDutyHours(inf);
+        const tag = isDutyTour(inf && inf.tour) ? 'D' : (inf && inf.dutyStandby ? 'izsaukums' : '');
+        return d + '. ' + MONTH_LV[state.calData.month].slice(0,3) + ' ' + h.toFixed(1) + 'h' + (tag ? ' (' + tag + ')' : '');
+      }).join(', ')}</div>` : ''}
       ${holidayDays.length > 0 ? `<div style="font-size: 10px; color: var(--text-muted);">Svētku dienas: ${holidayDays.map(d => d + '. ' + MONTH_LV[state.calData.month].slice(0,3)).join(', ')}</div>` : ''}
       <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()" style="width: 100%; margin-top: 12px;">Aizvērt</button>
     </div>`;
@@ -2802,6 +2875,7 @@ function applyTourToDay(day, tourNorm, prevNight, opts) {
   const manualStart = opts.manualStart || '';
   const manualEnd = opts.manualEnd || '';
   const goesOvernight = opts.goesOvernight === true;
+  const dutyStandby = opts.dutyStandby === true && !isDutyTour(tourNorm);
 
   if (!tourNorm || tourNorm === 'b') {
     state.calData.calendar[day] = { type: 'off' };
@@ -2817,6 +2891,7 @@ function applyTourToDay(day, tourNorm, prevNight, opts) {
       overnight: false,
       prevDayOvernight: false,
       goesOvernight: false,
+      dutyStandby: false,
       baseHours: 0,
       hours: 0,
       countedHours: 0,
@@ -2876,6 +2951,7 @@ function applyTourToDay(day, tourNorm, prevNight, opts) {
     overnight: false,
     prevDayOvernight: !!prevNight,
     goesOvernight: !!goesOvernight,
+    dutyStandby: !!dutyStandby,
     baseHours: hrs,
     hours: hrs,
     countedHours: hrs,
@@ -2900,6 +2976,7 @@ function updateDayTour(day, preferPdfIfTourChanged) {
 
   const startInp = document.getElementById('edit-start-inp');
   const endInp = document.getElementById('edit-end-inp');
+  const dutyCb = document.getElementById('edit-duty-standby');
   const manualStart = startInp ? startInp.value.trim() : '';
   const manualEnd = endInp ? endInp.value.trim() : '';
 
@@ -2909,10 +2986,24 @@ function updateDayTour(day, preferPdfIfTourChanged) {
     || !!(old.prevDayOvernight) !== prevNight
     || !!(old.goesOvernight) !== goesOvernight;
 
+  // Dežūra ķeksītis: pure D → false; D→tūre auto-on ja lietotājs nav noņēmis
+  let dutyStandby = false;
+  if (!isOff && !isDutyCont && !isDutyTour(tourNorm)) {
+    if (dutyCb) {
+      dutyStandby = !!dutyCb.checked;
+    } else if (old.dutyStandby) {
+      dutyStandby = true;
+    } else if (isDutyTour(oldTour) && isTourNumberLike(tourNorm)) {
+      // Izsauca no dežūras — automātiski ieslēdz
+      dutyStandby = true;
+    }
+  }
+
   state.editSchedule[day] = {
     tour: tourNorm,
     prevNight: isDutyCont || isOff ? false : prevNight,
     goesOvernight: isDutyCont || isOff ? false : goesOvernight,
+    dutyStandby: dutyStandby || undefined,
     dutyContinuation: isDutyCont || undefined,
     dutyParentDay: isDutyCont ? (day - 1) : undefined
   };
@@ -2922,7 +3013,8 @@ function updateDayTour(day, preferPdfIfTourChanged) {
     forcePdf: false,
     manualStart: manualStart,
     manualEnd: manualEnd,
-    goesOvernight: isDutyCont || isOff ? false : goesOvernight
+    goesOvernight: isDutyCont || isOff ? false : goesOvernight,
+    dutyStandby: dutyStandby
   });
 
   persistCalendarDayChange();
@@ -2934,11 +3026,12 @@ function updateDayTour(day, preferPdfIfTourChanged) {
       renderCalendar();
       const hint = document.getElementById('day-pdf-hint');
       if (hint) {
-        if (result.source === 'pdf') hint.textContent = '✓ Laiki no PDF kataloga';
-        else if (result.source === 'duty-default') hint.textContent = '✓ Dežūras noklusējuma laiki';
-        else if (result.source === 'manual') hint.textContent = '✓ Saglabāts ar manuāliem laikiem' + (goesOvernight ? ' · uz nakti (/)' : '') + (prevNight ? ' · no nakts (/…)' : '');
+        const dutyH = dutyStandby && manualStart ? calcDutyStandbyHours(manualStart) : 0;
+        if (result.source === 'pdf') hint.textContent = '✓ Laiki no PDF kataloga' + (dutyStandby ? ` · dež. ${dutyH.toFixed(1)}h` : '');
+        else if (result.source === 'duty-default') hint.textContent = '✓ Dežūras noklusējuma laiki (05:00–21:00)';
+        else if (result.source === 'manual') hint.textContent = '✓ Saglabāts ar manuāliem laikiem' + (dutyStandby ? ` · dež. ${dutyH.toFixed(1)}h (05:00→sākums)` : '') + (goesOvernight ? ' · uz nakti' : '') + (prevNight ? ' · no nakts' : '');
         else if (result.notFound) hint.textContent = '⚠ PDF katalogā nav — OK manuāliem laikiem. Tips: T/ = uz nakti, /T = no nakts';
-        else hint.textContent = '✓ Saglabāts';
+        else hint.textContent = '✓ Saglabāts' + (dutyStandby ? ` · dežūra ON` : '');
         hint.style.color = (result.notFound && result.source !== 'manual') ? 'var(--accent)' : 'var(--green)';
       }
     }, 40);
@@ -2948,7 +3041,8 @@ function updateDayTour(day, preferPdfIfTourChanged) {
 function fillDayFromPdf(day) {
   if (!state.calData) return;
   const inp = document.getElementById('edit-tour-inp');
-  let tourNorm, prevNight, goesOvernight;
+  const dutyCb = document.getElementById('edit-duty-standby');
+  let tourNorm, prevNight, goesOvernight, dutyStandby;
   if (inp && inp.value.trim()) {
     const p = parseTourInput(inp.value.trim());
     if (p.isOff) {
@@ -2966,19 +3060,24 @@ function fillDayFromPdf(day) {
     prevNight = !!info.prevDayOvernight;
     goesOvernight = !!info.goesOvernight;
   }
+  const old = state.calData.calendar[day] || {};
+  dutyStandby = dutyCb ? !!dutyCb.checked : !!old.dutyStandby;
+  if (isDutyTour(tourNorm)) dutyStandby = false;
 
   const isDutyCont = isDutyContinuationTour(tourNorm);
   state.editSchedule[day] = {
     tour: tourNorm,
     prevNight: isDutyCont ? false : prevNight,
     goesOvernight: isDutyCont ? false : goesOvernight,
+    dutyStandby: dutyStandby || undefined,
     dutyContinuation: isDutyCont || undefined,
     dutyParentDay: isDutyCont ? (day - 1) : undefined
   };
 
   const result = applyTourToDay(day, tourNorm, isDutyCont ? false : prevNight, {
     forcePdf: true,
-    goesOvernight: isDutyCont ? false : goesOvernight
+    goesOvernight: isDutyCont ? false : goesOvernight,
+    dutyStandby: dutyStandby
   });
   persistCalendarDayChange();
   const keep = day;
@@ -2990,7 +3089,7 @@ function fillDayFromPdf(day) {
     const hint = document.getElementById('day-pdf-hint');
     if (!hint) return;
     if (result.source === 'pdf') {
-      hint.textContent = '✓ Laiki aizpildīti no PDF';
+      hint.textContent = '✓ Laiki aizpildīti no PDF' + (dutyStandby ? ' · dežūra ON' : '');
       hint.style.color = 'var(--green)';
     } else if (result.source === 'duty-default') {
       hint.textContent = '✓ Dežūra — noklusējuma laiki (PDF nav vajadzīgs)';
@@ -3029,19 +3128,21 @@ function refreshAllFromPdf() {
     const sched = state.editSchedule[d] || {
       tour: info.tour,
       prevNight: !!info.prevDayOvernight,
-      goesOvernight: !!info.goesOvernight
+      goesOvernight: !!info.goesOvernight,
+      dutyStandby: !!info.dutyStandby
     };
     const tourNorm = sched.tour || info.tour;
     if (!tourNorm || tourNorm === 'b') continue;
     if (isDutyTour(tourNorm)) {
       // refresh duty defaults too
-      const r = applyTourToDay(d, tourNorm, false, { forcePdf: true, goesOvernight: false });
+      const r = applyTourToDay(d, tourNorm, false, { forcePdf: true, goesOvernight: false, dutyStandby: false });
       if (r.source === 'duty-default') fixed++;
       continue;
     }
     const r = applyTourToDay(d, tourNorm, !!sched.prevNight, {
       forcePdf: true,
-      goesOvernight: !!sched.goesOvernight || !!info.goesOvernight
+      goesOvernight: !!sched.goesOvernight || !!info.goesOvernight,
+      dutyStandby: !!sched.dutyStandby || !!info.dutyStandby
     });
     if (r.source === 'pdf') fixed++;
     else if (r.notFound) missing++;
@@ -3085,11 +3186,13 @@ async function addExtraPdfs(fileList) {
       const sched = state.editSchedule[d] || {
         tour: info.tour,
         prevNight: !!info.prevDayOvernight,
-        goesOvernight: !!info.goesOvernight
+        goesOvernight: !!info.goesOvernight,
+        dutyStandby: !!info.dutyStandby
       };
       const r = applyTourToDay(d, sched.tour || info.tour, !!sched.prevNight, {
         forcePdf: true,
-        goesOvernight: !!sched.goesOvernight || !!info.goesOvernight
+        goesOvernight: !!sched.goesOvernight || !!info.goesOvernight,
+        dutyStandby: !!sched.dutyStandby || !!info.dutyStandby
       });
       if (r.source === 'pdf') fixed++;
     }
