@@ -145,6 +145,7 @@ select {
 .tag-n { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); } /* Bez atpūtas */
 .tag-p { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
 .tag-d { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
+.tag-nf { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
 
 /* Edit row */
 .erow {
@@ -1255,21 +1256,48 @@ function crossesMidnight(start, end) {
 }
 
 /**
- * Darba dienas veids pēc "/" notācijas (ne pēc pulksteņa nakts stundām):
- * - bez-atputas: nepārtraukta tūre — ABAS dienas violetas (start + end)
- * - no-nakts: "/" PRIEKŠĀ pēc viesnīcas (uz nakti), NE pēc bez-atpūtas
- * - uz-nakti: "/" BEIGĀS vai nākamā ar "/" priekšā — viesnīca
- * - dienas: bez "/" pāra — mājās
+ * Ciparu tūres nr. (ar optional xxx/xx un / notāciju) — ne brīvs teksts kā "mācības".
+ */
+function isTourNumberLike(tour) {
+  if (tour == null || tour === '') return false;
+  const t = extractSlashFlags({ tour: String(tour) }).tour;
+  if (!t || t === 'b' || t === '-') return false;
+  if (isDutyTour(t)) return true;
+  return /^\d{3,5}(\/\d{2,3})?$/.test(t);
+}
+
+function hasUsableTimes(info) {
+  if (!info) return false;
+  const st = info.startTime, et = info.endTime;
+  if (!st || !et) return false;
+  if (st === '?' || et === '?' || st === '—' || et === '—') return false;
+  return /^\d{1,2}:\d{2}$/.test(String(st)) && /^\d{1,2}:\d{2}$/.test(String(et));
+}
+
+/**
+ * Darba dienas veids:
+ * - note: brīvs teksts (mācības) → oranžs, rāda tekstu (BEZ "nav PDF")
+ * - notfound: ciparu tūre nav PDF un NAV manuālu laiku → oranžs "Nav PDF"
+ * - dienas/uz-nakti/... : ciparu tūre ar laikiem (PDF vai manuāli) + "/" notācija
+ * - bez-atputas: abas dienas violetas
  */
 function getWorkDayKind(info, nextInfo) {
   if (!info || info.type !== 'work') return 'off';
   if (info.dutyContinuation || isDutyContinuationTour(info.tour)) return 'duty-cont';
   if (info.isDuty || isDutyTour(info.tour)) return 'duty';
 
+  // Brīvs teksts (mācības, atvaļinājums, …) — oranžs ar tekstu
+  if (!isTourNumberLike(info.tour)) return 'note';
+
+  // Ciparu tūre bez PDF un bez manuāliem laikiem — oranžs "Nav PDF"
+  if (!hasUsableTimes(info) && (info.notFound || info.startTime === '?' || !info.startTime)) {
+    return 'notfound';
+  }
+
   const cur = extractSlashFlags(info);
   const nextFlags = (nextInfo && nextInfo.type === 'work') ? extractSlashFlags(nextInfo) : null;
 
-  // Bez atpūtas — ABAS pāra dienas violetas (ne end=zaļš)
+  // Bez atpūtas — ABAS pāra dienas violetas
   if (
     info.overnight ||
     info.pairRole === 'start' ||
@@ -1279,14 +1307,13 @@ function getWorkDayKind(info, nextInfo) {
     return 'bez-atputas';
   }
 
-  // no nakts — rīts ar "/" pēc viesnīcas komandējuma (nav continuous pair)
+  // no nakts — rīts ar "/" pēc viesnīcas
   if (cur.prevNight) return 'no-nakts';
 
   const nextFromNight = !!(nextFlags && (
     nextFlags.prevNight || nextInfo.hoursHeldOnPrevDay || nextInfo.pairRole === 'end'
   ));
 
-  // Uz nakti — trailing "/" vai nākamā diena no nakts/viesnīcas
   if (cur.goesOvernight || nextFromNight) return 'uz-nakti';
 
   return 'dienas';
@@ -1300,7 +1327,8 @@ function workDayKindToCellClass(kind) {
     case 'bez-atputas': return 'dc dn';
     case 'uz-nakti': return 'dc dw';
     case 'dienas': return 'dc dday';
-    case 'notfound': return 'dc dnf'; // legacy — vairs neizmanto getWorkDayKind
+    case 'note':
+    case 'notfound': return 'dc dnf'; // oranžs
     default: return 'dc do';
   }
 }
@@ -1313,7 +1341,8 @@ function workDayKindToDetailTag(kind) {
     case 'bez-atputas': return { cls: 'tag-n', label: 'BEZ ATPŪTAS' };
     case 'uz-nakti': return { cls: 'tag-w', label: 'UZ NAKTI' };
     case 'dienas': return { cls: 'tag-day', label: 'DIENAS' };
-    case 'notfound': return { cls: 'tag-w', label: 'NAV PDF' };
+    case 'note': return { cls: 'tag-nf', label: 'PIEZĪME' };
+    case 'notfound': return { cls: 'tag-nf', label: 'NAV PDF' };
     default: return { cls: 'tag-b', label: 'BRĪVDIENA' };
   }
 }
@@ -1781,20 +1810,32 @@ function renderCalendar() {
       const kind = getWorkDayKind(info, nextInfo);
       cls = workDayKindToCellClass(kind);
 
-      label = info.dutyContinuation ? 'D→' : formatTourDisplay(info);
-      // Stack start / end times (Claude-like). Prefer start over "beidzas".
-      const st = info.startTime && info.startTime !== '?' ? info.startTime : null;
-      const et = info.endTime && info.endTime !== '?' ? info.endTime : null;
-      if (st && et) {
-        timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(st)}</div><div class="dc-time">${escapeHtml(et)}</div></div>`;
-      } else if (st) {
-        timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(st)}</div></div>`;
-      } else if (et) {
-        timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(et)}</div></div>`;
-      } else if (info.notFound) {
-        timeHtml = `<div class="dc-times"><div class="dc-time">nav PDF</div></div>`;
+      const st = info.startTime && info.startTime !== '?' && info.startTime !== '—' ? info.startTime : null;
+      const et = info.endTime && info.endTime !== '?' && info.endTime !== '—' ? info.endTime : null;
+
+      if (kind === 'note') {
+        // Brīvs teksts (mācības) — oranžs, tikai teksts, BEZ "nav PDF"
+        label = String(info.tour || '').trim() || '—';
+        if (st && et) {
+          timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(st)}</div><div class="dc-time">${escapeHtml(et)}</div></div>`;
+        } else {
+          timeHtml = '';
+        }
+      } else if (kind === 'notfound') {
+        // Ciparu tūre nav PDF, nav laiku — oranžs "Nav PDF"
+        label = 'Nav PDF';
+        timeHtml = '';
       } else {
-        timeHtml = `<div class="dc-times"><div class="dc-time">?</div></div>`;
+        label = info.dutyContinuation ? 'D→' : formatTourDisplay(info);
+        if (st && et) {
+          timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(st)}</div><div class="dc-time">${escapeHtml(et)}</div></div>`;
+        } else if (st) {
+          timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(st)}</div></div>`;
+        } else if (et) {
+          timeHtml = `<div class="dc-times"><div class="dc-time">${escapeHtml(et)}</div></div>`;
+        } else {
+          timeHtml = `<div class="dc-times"><div class="dc-time">?</div></div>`;
+        }
       }
     }
 
@@ -1804,29 +1845,35 @@ function renderCalendar() {
     const dayName = DOW_LV[dow];
 
     const safeLabel = label ? escapeHtml(label) : '';
-    const shownHours = info && info.type === 'work'
-      ? (info.countedHours != null ? info.countedHours : info.hours)
+    const kindForBody = (info && info.type === 'work')
+      ? getWorkDayKind(info, d < dim ? calendar[d + 1] : null)
       : null;
-    // Pair notes
-    const nextInfoNote = (info && info.type === 'work' && d < dim) ? calendar[d + 1] : null;
-    const kindNote = info && info.type === 'work' ? getWorkDayKind(info, nextInfoNote) : null;
+    const shownHours = info && info.type === 'work' && kindForBody !== 'note' && kindForBody !== 'notfound'
+      ? (info.countedHours != null ? info.countedHours : info.hours)
+      : (info && info.type === 'work' && kindForBody === 'note' && hasUsableTimes(info)
+          ? (info.countedHours != null ? info.countedHours : info.hours)
+          : null);
+    // Pair notes — tikai īstām tūrēm
     let pairNote = '';
-    if (kindNote === 'bez-atputas') {
+    if (kindForBody === 'bez-atputas') {
       const isEnd = info.pairRole === 'end' || info.hoursHeldOnPrevDay;
       pairNote = isEnd
         ? '<div class="dc-pair-note">bez atp.</div>'
         : '<div class="dc-pair-note">bez atp. →</div>';
-    } else if (kindNote === 'no-nakts') {
+    } else if (kindForBody === 'no-nakts') {
       pairNote = '<div class="dc-pair-note">no nakts</div>';
-    } else if (kindNote === 'uz-nakti') {
+    } else if (kindForBody === 'uz-nakti') {
       pairNote = '<div class="dc-pair-note">uz nakti →</div>';
     }
 
     if (isOff) {
       bodyHtml = `<div class="dc-off-label">Brīvs</div>`;
     } else {
+      const tourCls = (kindForBody === 'note' || kindForBody === 'notfound')
+        ? 'dc-tour nf'
+        : 'dc-tour';
       bodyHtml = `
-      ${safeLabel ? `<div class="dc-tour${info && info.notFound ? ' nf' : ''}">${safeLabel}</div>` : ''}
+      ${safeLabel ? `<div class="${tourCls}">${safeLabel}</div>` : ''}
       ${timeHtml}
       ${shownHours != null && shownHours > 0 ? `<div class="dc-hrs">${Number(shownHours).toFixed(1)}h</div>` : ''}
       ${pairNote}`;
@@ -1883,13 +1930,18 @@ function renderDayDetail() {
   if (!info) { container.style.display = 'none'; return; }
 
   const dow = getDow(d, state.calData.month, state.calData.year);
-  const displayTour = formatTourDisplay(info);
   const isOff = info.type === 'off';
   const nextInfo = state.calData.calendar[d + 1] || null;
   const kind = isOff ? 'off' : getWorkDayKind(info, nextInfo);
   const tag = isOff ? { cls: 'tag-b', label: 'BRĪVDIENA' } : workDayKindToDetailTag(kind);
   let detailTagClass = tag.cls;
   let detailTagLabel = tag.label;
+  // Ievades laukā: piezīmei rādi tekstu; notfound — tūres nr. (lai var labot)
+  const displayTour = isOff ? 'b'
+    : (kind === 'note' ? String(info.tour || '').trim() : formatTourDisplay(info));
+  const titleTour = isOff ? 'BRĪVDIENA'
+    : (kind === 'note' ? String(info.tour || '').trim()
+      : (kind === 'notfound' ? 'Nav PDF' : formatTourDisplay(info)));
 
   container.style.display = 'block';
   container.innerHTML = `
@@ -1904,24 +1956,24 @@ function renderDayDetail() {
       </div>
       <div style="display: grid; grid-template-columns: ${isOff ? '1fr' : 'repeat(3, 1fr)'}; gap: 12px; margin-bottom: 12px;">
         <div class="sc">
-          <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">TŪRE</div>
+          <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">${kind === 'note' ? 'PIEZĪME' : 'TŪRE'}</div>
           ${isOff
             ? `<div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif; color: var(--red);">BRĪVDIENA</div>`
-            : `<div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--accent);">${escapeHtml(formatTourDisplay(info))}</div>`}
+            : `<div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: ${kind === 'note' || kind === 'notfound' ? 'var(--orange)' : 'var(--accent)'};">${escapeHtml(titleTour)}</div>`}
         </div>
         ${!isOff ? `
         <div class="sc">
           <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">LAIKS</div>
-          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif;">${escapeHtml(info.startTime)} → ${escapeHtml(info.endTime)}</div>
+          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif;">${hasUsableTimes(info) ? escapeHtml(info.startTime) + ' → ' + escapeHtml(info.endTime) : '—'}</div>
         </div>
         <div class="sc">
           <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">STUNDAS</div>
-          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif; color: var(--green);">${(info.countedHours != null ? info.countedHours : info.hours) != null ? Number(info.countedHours != null ? info.countedHours : info.hours).toFixed(1) + 'h' : '?'}</div>
+          <div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif; color: var(--green);">${hasUsableTimes(info) && (info.countedHours != null ? info.countedHours : info.hours) != null ? Number(info.countedHours != null ? info.countedHours : info.hours).toFixed(1) + 'h' : '—'}</div>
         </div>` : ''}
       </div>
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <input type="text" id="edit-tour-inp" class="edit-inp" style="flex: 2; min-width: 100px;" value="${escapeHtml(displayTour)}"
-          placeholder="Tūre (piem. 704/59, 7214/, /T, T/, b)"
+          placeholder="Tūre / piezīme (704/59, 7214/, mācības, b)"
           onkeydown="if(event.key==='Enter'){event.preventDefault();updateDayTour(${d},true);}">
         <span style="font-size: 10px; color: var(--text-dim);">no</span>
         <input type="text" id="edit-start-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.startTime === '—' || info.startTime === '?' ? '' : (info.startTime || ''))}" placeholder="HH:MM">
@@ -1932,7 +1984,9 @@ function renderDayDetail() {
           style="background: var(--sky-bg); color: var(--sky); border-color: var(--sky-border);">🔄 No PDF</button>
       </div>
       <div id="day-pdf-hint" style="margin-top: 8px; font-size: 10px; color: var(--text-dim);"></div>
-      ${info.notFound ? '<div style="margin-top: 4px; font-size: 10px; color: var(--accent);">⚠ Tūre nav atrasta PDF katalogā — pievieno PDF vai spied «Atjaunināt laikus no PDF»</div>' : ''}
+      ${kind === 'note' ? '<div style="margin-top: 4px; font-size: 10px; color: var(--orange);">Oranžā piezīme — nav tūre. Ciparu tūrei + laikiem darbojas krāsu loģika.</div>' : ''}
+      ${kind === 'notfound' ? '<div style="margin-top: 4px; font-size: 10px; color: var(--orange);">Nav PDF — ievadi laikus manuāli, lai parādītos kā darba diena (dienas / uz nakti).</div>' : ''}
+      ${kind !== 'note' && kind !== 'notfound' && info.notFound && hasUsableTimes(info) ? '<div style="margin-top: 4px; font-size: 10px; color: var(--text-dim);">Manuāli laiki (tūre nav PDF katalogā) — OK.</div>' : ''}
     </div>`;
 }
 
