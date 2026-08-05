@@ -2,12 +2,21 @@
 <html lang="lv">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Darba Kalendārs v3.6.1 — Vilciena Konduktors</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0c0e14">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kalendārs">
+<meta name="description" content="Vilciena konduktora darba grafika pārvaldnieks">
+<title>Darba Kalendārs v3.7.0 — Vilciena Konduktors</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   DARBA KALENDĀRS v3.6 — Dark Theme
-   Pārņemts no Claude Code, pārbūvēts ar Hermes Agent
+   DARBA KALENDĀRS v3.7 — Dark Theme + PWA
    ═══════════════════════════════════════════════════════════════════════════ */
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
 
@@ -487,9 +496,53 @@ select {
   border-radius: 8px; padding: 10px 12px; margin-top: 8px; line-height: 1.55;
 }
 
+/* PWA update / install banners — never auto-reload */
+.pwa-banner {
+  display: none;
+  position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 9999;
+  background: #161820; border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; box-shadow: 0 12px 40px rgba(0,0,0,.55);
+  align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.pwa-banner.show { display: flex; }
+.pwa-banner .pwa-msg { font-size: 12px; color: var(--text); line-height: 1.45; flex: 1; min-width: 180px; }
+.pwa-banner .pwa-msg b { color: var(--accent); }
+.pwa-banner .pwa-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pwa-banner .btn-update {
+  background: var(--accent); color: #0c0e14; border: none; border-radius: 8px;
+  padding: 8px 14px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.pwa-banner .btn-dismiss {
+  background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; font-family: 'DM Mono', monospace; font-size: 12px; cursor: pointer;
+}
+.pwa-banner.install-banner { border-color: var(--blue-border); }
+.app-footer {
+  text-align: center; padding: 18px 12px 28px; font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px;
+}
+.app-footer .ver { color: var(--text-dim); }
+
 </style>
 </head>
 <body>
+
+<!-- Update available (manual only — no forced reload) -->
+<div id="update-banner" class="pwa-banner" role="status" aria-live="polite">
+  <div class="pwa-msg">📦 Pieejama <b>jauna versija</b> <span id="update-ver-label"></span>. Tava sesija netiek aiztikta, līdz pats atjaunini.</div>
+  <div class="pwa-actions">
+    <button type="button" class="btn-dismiss" id="btn-update-later">Vēlāk</button>
+    <button type="button" class="btn-update" id="btn-apply-update">↻ Atjaunināt</button>
+  </div>
+</div>
+
+<!-- Install PWA -->
+<div id="install-banner" class="pwa-banner install-banner" role="dialog" aria-label="Instalēt lietotni">
+  <div class="pwa-msg">📱 Pievieno <b>sākuma ekrānam</b> — bez pārlūka katru reizi.</div>
+  <div class="pwa-actions">
+    <button type="button" class="btn-dismiss" id="btn-install-later">Ne tagad</button>
+    <button type="button" class="btn-update" id="btn-install-pwa">⬇ Instalēt</button>
+  </div>
+</div>
 
 <!-- ═══════════════ HEADER ═══════════════ -->
 <div class="header">
@@ -504,7 +557,9 @@ select {
       <div class="subtitle">VILCIENA KONDUKTORS · GRAFIKA PĀRVALDNIEKS</div>
     </div>
   </div>
-  <div style="display: flex; gap: 8px; align-items: center;">
+  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+  <button class="btn-ghost" id="btn-install-header" style="display:none;" onclick="promptPwaInstall()" title="Instalēt kā lietotni">⬇ Instalēt</button>
+  <button class="btn-ghost" id="btn-check-update" onclick="manualCheckForUpdate(true)" title="Pārbaudīt jauninājumus">↻ Update</button>
   <button class="btn-ghost" id="btn-delete-month" style="display:none; color: var(--red); border-color: #3a2020;" onclick="deleteMonth()">🗑 Dzēst mēnesi</button>
   <button class="btn-ghost" id="btn-new-month" style="display:none" onclick="goToNewMonth()">+ JAUNS MĒNESIS</button>
     <button class="btn-ghost" id="btn-edit" style="display:none" onclick="goToEdit()">✏ REDIĢĒT</button>
@@ -3499,6 +3554,218 @@ function addPdfs(files) {
   const newFiles = files.filter(f => !names.has(f.name));
   state.pdfs = [...state.pdfs, ...newFiles];
   renderPdfList();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PWA — install + MANUAL updates only (no forced reload mid-session)
+// ═══════════════════════════════════════════════════════════════════════════
+const APP_VERSION = '3.7.0';
+let _swRegistration = null;
+let _waitingWorker = null;
+let _deferredInstallPrompt = null;
+let _updateBannerDismissedFor = null; // version string user said "later"
+
+function showUpdateBanner(remoteVer) {
+  const ver = remoteVer || '';
+  if (_updateBannerDismissedFor && _updateBannerDismissedFor === (ver || 'pending')) return;
+  const banner = document.getElementById('update-banner');
+  const label = document.getElementById('update-ver-label');
+  if (label) label.textContent = ver ? '(' + ver + ')' : '';
+  if (banner) banner.classList.add('show');
+}
+
+function hideUpdateBanner() {
+  const banner = document.getElementById('update-banner');
+  if (banner) banner.classList.remove('show');
+}
+
+function applyAppUpdate() {
+  // Prefer SW skipWaiting path
+  if (_waitingWorker) {
+    _waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    // reload when new SW takes control
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
+    // fallback reload
+    setTimeout(() => { if (!reloaded) window.location.reload(); }, 1200);
+    return;
+  }
+  // No waiting worker — hard reload + cache bust
+  const u = new URL(window.location.href);
+  u.searchParams.set('v', APP_VERSION + '-' + Date.now());
+  window.location.replace(u.toString());
+}
+
+async function checkRemoteVersion() {
+  try {
+    const res = await fetch('./version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.version ? String(data.version) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function manualCheckForUpdate(fromButton) {
+  const remote = await checkRemoteVersion();
+  if (remote && remote !== APP_VERSION) {
+    showUpdateBanner(remote);
+    if (fromButton) {
+      // also ask SW to look for update
+      if (_swRegistration) _swRegistration.update().catch(() => {});
+    }
+    return true;
+  }
+  if (_swRegistration) {
+    try { await _swRegistration.update(); } catch (e) {}
+    if (_swRegistration.waiting) {
+      _waitingWorker = _swRegistration.waiting;
+      showUpdateBanner(remote || '');
+      return true;
+    }
+  }
+  if (fromButton) {
+    const btn = document.getElementById('btn-check-update');
+    if (btn) {
+      const prev = btn.textContent;
+      btn.textContent = '✓ Aktuāls';
+      setTimeout(() => { btn.textContent = prev; }, 2000);
+    }
+  }
+  return false;
+}
+
+function promptPwaInstall() {
+  const banner = document.getElementById('install-banner');
+  if (_deferredInstallPrompt) {
+    _deferredInstallPrompt.prompt();
+    _deferredInstallPrompt.userChoice.finally(() => {
+      _deferredInstallPrompt = null;
+      hideInstallUi();
+    });
+    return;
+  }
+  // iOS / browsers without beforeinstallprompt
+  if (banner) {
+    const msg = banner.querySelector('.pwa-msg');
+    if (msg) {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      msg.innerHTML = isIOS
+        ? '📱 <b>iPhone/iPad:</b> Safari → Share (□↑) → <b>Add to Home Screen</b>'
+        : '📱 Pārlūkā: izvēlne ⋮ → <b>Install app</b> / Pievienot sākuma ekrānam';
+    }
+    banner.classList.add('show');
+  }
+}
+
+function hideInstallUi() {
+  const banner = document.getElementById('install-banner');
+  const hdr = document.getElementById('btn-install-header');
+  if (banner) banner.classList.remove('show');
+  // keep header btn if still installable
+  if (hdr && !_deferredInstallPrompt) hdr.style.display = 'none';
+}
+
+function showInstallUi() {
+  const hdr = document.getElementById('btn-install-header');
+  if (hdr) hdr.style.display = '';
+  // Soft install banner once per version unless dismissed
+  try {
+    if (localStorage.getItem('dk-install-dismissed') === APP_VERSION) return;
+  } catch (e) {}
+  const banner = document.getElementById('install-banner');
+  if (banner && !window.matchMedia('(display-mode: standalone)').matches) {
+    banner.classList.add('show');
+  }
+}
+
+function initPwa() {
+  // Footer version
+  const foot = document.createElement('div');
+  foot.className = 'app-footer';
+  foot.innerHTML = 'Darba Kalendārs · <span class="ver">v' + APP_VERSION + '</span> · dati paliek tavā ierīcē';
+  document.body.appendChild(foot);
+
+  // Banner buttons
+  const btnApply = document.getElementById('btn-apply-update');
+  const btnLater = document.getElementById('btn-update-later');
+  if (btnApply) btnApply.addEventListener('click', applyAppUpdate);
+  if (btnLater) btnLater.addEventListener('click', () => {
+    checkRemoteVersion().then((v) => { _updateBannerDismissedFor = v || 'pending'; });
+    hideUpdateBanner();
+  });
+  const btnInstLater = document.getElementById('btn-install-later');
+  const btnInst = document.getElementById('btn-install-pwa');
+  if (btnInstLater) btnInstLater.addEventListener('click', () => {
+    try { localStorage.setItem('dk-install-dismissed', APP_VERSION); } catch (e) {}
+    hideInstallUi();
+  });
+  if (btnInst) btnInst.addEventListener('click', promptPwaInstall);
+
+  // Install prompt (Chrome/Edge/Android)
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    _deferredInstallPrompt = e;
+    showInstallUi();
+  });
+  window.addEventListener('appinstalled', () => {
+    _deferredInstallPrompt = null;
+    hideInstallUi();
+  });
+
+  // Already standalone?
+  const standalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  if (!standalone && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    // Show header install affordance on mobile even without bip event (iOS)
+    const hdr = document.getElementById('btn-install-header');
+    if (hdr) hdr.style.display = '';
+  }
+
+  // Service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      _swRegistration = reg;
+      if (reg.waiting) {
+        _waitingWorker = reg.waiting;
+        showUpdateBanner();
+      }
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            _waitingWorker = nw;
+            showUpdateBanner();
+          }
+        });
+      });
+    }).catch(() => {});
+
+    // Periodic quiet check (no reload) — every 30 min + on tab focus
+    setInterval(() => { manualCheckForUpdate(false); }, 30 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') manualCheckForUpdate(false);
+    });
+  } else {
+    // No SW: still compare version.json quietly
+    manualCheckForUpdate(false);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') manualCheckForUpdate(false);
+    });
+  }
+}
+
+// boot PWA after DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPwa);
+} else {
+  initPwa();
 }
 </script>
 </body>
