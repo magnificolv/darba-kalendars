@@ -1,6 +1,6 @@
 {
-  "version": "3.7.2",
+  "version": "3.7.3",
   "name": "Darba Kalendārs",
-  "builtAt": "2026-08-05T14:45:00+03:00",
-  "notes": "Icon #5 confirmed + cache-busted filenames for PWA home screen"
+  "builtAt": "2026-08-05T14:50:00+03:00",
+  "notes": "Icon remake: full-bleed bright purple calendar (variant 3)"
 }
