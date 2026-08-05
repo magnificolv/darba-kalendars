@@ -1,6 +1,6 @@
 {
-  "version": "3.7.0",
+  "version": "3.7.1",
   "name": "Darba Kalendārs",
-  "builtAt": "2026-08-05T14:10:00+03:00",
-  "notes": "PWA install + manual update banner (no forced reload)"
+  "builtAt": "2026-08-05T14:30:00+03:00",
+  "notes": "Official app icon #5 (minimal calendar + highlighted day)"
 }
