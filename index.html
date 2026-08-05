@@ -1171,15 +1171,63 @@ function crossesMidnight(start, end) {
   return (eh * 60 + em) < (sh * 60 + sm);
 }
 
-/** Tīra dienas tūre: vienā kalendāra dienā, bez nakts loga 22:00–06:00 overlap */
-function isPureDayTour(info) {
-  if (!info || info.type !== 'work') return false;
-  if (info.overnight || info.pairRole || info.prevDayOvernight || info.hoursHeldOnPrevDay) return false;
-  if (info.isDuty || info.dutyContinuation || info.notFound) return false;
-  const st = info.startTime, et = info.endTime;
-  if (!st || !et || st === '?' || et === '?' || st === '—' || et === '—') return false;
-  if (crossesMidnight(st, et)) return false;
-  return nightOverlap(st, et) <= 0;
+/**
+ * Darba dienas veids pēc GRAFIKA notācijas (ne pēc pulksteņa nakts stundām):
+ * - no-nakts: šodien sākas ar "/" (prevDayOvernight) — rīts pēc komandējuma / nepārtrauktas tūres
+ * - bez-atputas: nepārtraukta tūre cauri naktij, VIENĀDS nr. abās dienās (pair start)
+ * - uz-nakti: šodien ej prom, NĀKAMAJĀ dienā ir "/" — paliec dienesta viesnīcā, rīt cita/turpinājuma tūre
+ * - dienas: tūre beidzas un ej MĀJĀS (nākamajā dienā nav "/")
+ * - duty / notfound — atsevišķi
+ */
+function getWorkDayKind(info, nextInfo) {
+  if (!info || info.type !== 'work') return 'off';
+  if (info.dutyContinuation || isDutyContinuationTour(info.tour)) return 'duty-cont';
+  if (info.isDuty || isDutyTour(info.tour)) return 'duty';
+  if (info.notFound) return 'notfound';
+
+  // no nakts — rīts ar "/" (no viesnīcas vai no nepārtrauktas tūres)
+  if (info.prevDayOvernight || info.hoursHeldOnPrevDay || info.pairRole === 'end') return 'no-nakts';
+
+  // Bez atpūtas — nepārtraukta tūre (recalcOvernight: same tour + overnight)
+  if (info.overnight || info.pairRole === 'start') return 'bez-atputas';
+
+  // Nākamā diena ar "/" → šodien esi "uz nakti" (viesnīca), JA vienāds nr. = bez atpūtas fallback
+  const nextFromNight = nextInfo && nextInfo.type === 'work' && (
+    nextInfo.prevDayOvernight || nextInfo.hoursHeldOnPrevDay || nextInfo.pairRole === 'end'
+  );
+  if (nextFromNight) {
+    if (info.tour && nextInfo.tour && info.tour === nextInfo.tour) return 'bez-atputas';
+    return 'uz-nakti';
+  }
+
+  // Dienas — beidz un dodies mājās
+  return 'dienas';
+}
+
+function workDayKindToCellClass(kind) {
+  switch (kind) {
+    case 'duty':
+    case 'duty-cont': return 'dc dd';
+    case 'notfound': return 'dc dnf';
+    case 'no-nakts': return 'dc dp';
+    case 'bez-atputas': return 'dc dn';
+    case 'uz-nakti': return 'dc dw';
+    case 'dienas': return 'dc dday';
+    default: return 'dc do';
+  }
+}
+
+function workDayKindToDetailTag(kind) {
+  switch (kind) {
+    case 'duty-cont': return { cls: 'tag-d', label: 'DEŽŪRA (pāris)' };
+    case 'duty': return { cls: 'tag-d', label: 'DEŽŪRA' };
+    case 'notfound': return { cls: 'tag-w', label: 'NAV PDF' };
+    case 'no-nakts': return { cls: 'tag-p', label: 'no nakts' };
+    case 'bez-atputas': return { cls: 'tag-n', label: 'BEZ ATPŪTAS' };
+    case 'uz-nakti': return { cls: 'tag-w', label: 'UZ NAKTI' };
+    case 'dienas': return { cls: 'tag-day', label: 'DIENAS' };
+    default: return { cls: 'tag-b', label: 'BRĪVDIENA' };
+  }
 }
 
 function calcHours(start, end) {
@@ -1644,17 +1692,9 @@ function renderCalendar() {
     let bodyHtml = '';
 
     if (info && info.type === 'work') {
-      if (info.dutyContinuation || isDutyContinuationTour(info.tour)) cls = 'dc dd'; // dežūras 2. diena
-      else if (info.isDuty || isDutyTour(info.tour)) cls = 'dc dd'; // dežūra
-      else if (info.notFound) cls = 'dc dnf';
-      // no nakts = pāra beigas (iepr. dienas turpinājums)
-      else if (info.hoursHeldOnPrevDay || info.pairRole === 'end' || (info.prevDayOvernight && !info.overnight)) cls = 'dc dp';
-      // Bez atpūtas = nepārtraukta tūre abās dienās (vienāds nr.), sākuma diena
-      else if (info.overnight || info.pairRole === 'start') cls = 'dc dn';
-      // Dienas = tīra dienas tūre (nav nakts stundu 22–06)
-      else if (isPureDayTour(info)) cls = 'dc dday';
-      // Uz nakti = pārējais darbs (vēls / rīta / ar nakts stundām)
-      else cls = 'dc dw';
+      const nextInfo = d < dim ? calendar[d + 1] : null;
+      const kind = getWorkDayKind(info, nextInfo);
+      cls = workDayKindToCellClass(kind);
 
       label = info.dutyContinuation ? 'D→' : (info.tour || '');
       // Stack start / end times (Claude-like). Prefer start over "beidzas".
@@ -1682,12 +1722,16 @@ function renderCalendar() {
     const shownHours = info && info.type === 'work'
       ? (info.countedHours != null ? info.countedHours : info.hours)
       : null;
-    // Mobile has limited height — keep pair note short / hide under extreme panic via CSS
-    const pairNote = (info && info.hoursHeldOnPrevDay)
+    // Pair notes: no nakts | bez atpūtas sākums | uz nakti (viesnīca) sākums
+    const nextInfoNote = (info && info.type === 'work' && d < dim) ? calendar[d + 1] : null;
+    const kindNote = info && info.type === 'work' ? getWorkDayKind(info, nextInfoNote) : null;
+    const pairNote = (kindNote === 'no-nakts' && (info.hoursHeldOnPrevDay || info.prevDayOvernight || info.pairRole === 'end'))
       ? '<div class="dc-pair-note">no nakts</div>'
-      : (info && info.pairRole === 'start' && info.overnight)
-        ? '<div class="dc-pair-note">nakts →</div>'
-        : '';
+      : (kindNote === 'bez-atputas')
+        ? '<div class="dc-pair-note">bez atp. →</div>'
+        : (kindNote === 'uz-nakti')
+          ? '<div class="dc-pair-note">uz nakti →</div>'
+          : '';
 
     if (isOff) {
       bodyHtml = `<div class="dc-off-label">Brīvs</div>`;
@@ -1752,18 +1796,11 @@ function renderDayDetail() {
   const dow = getDow(d, state.calData.month, state.calData.year);
   const displayTour = info.type === 'off' ? 'b' : (info.prevDayOvernight ? '/' + info.tour : info.tour);
   const isOff = info.type === 'off';
-  const isDuty = info.isDuty || isDutyTour(info.tour);
-  const isDutyCont = info.dutyContinuation || isDutyContinuationTour(info.tour);
-  let detailTagClass = 'tag-w';
-  let detailTagLabel = 'UZ NAKTI';
-  if (isOff) { detailTagClass = 'tag-b'; detailTagLabel = 'BRĪVDIENA'; }
-  else if (isDutyCont) { detailTagClass = 'tag-d'; detailTagLabel = 'DEŽŪRA (pāris)'; }
-  else if (isDuty) { detailTagClass = 'tag-d'; detailTagLabel = 'DEŽŪRA'; }
-  else if (info.hoursHeldOnPrevDay || info.pairRole === 'end' || (info.prevDayOvernight && !info.overnight)) {
-    detailTagClass = 'tag-p'; detailTagLabel = 'no nakts';
-  }
-  else if (info.overnight || info.pairRole === 'start') { detailTagClass = 'tag-n'; detailTagLabel = 'BEZ ATPŪTAS'; }
-  else if (isPureDayTour(info)) { detailTagClass = 'tag-day'; detailTagLabel = 'DIENAS'; }
+  const nextInfo = state.calData.calendar[d + 1] || null;
+  const kind = isOff ? 'off' : getWorkDayKind(info, nextInfo);
+  const tag = isOff ? { cls: 'tag-b', label: 'BRĪVDIENA' } : workDayKindToDetailTag(kind);
+  let detailTagClass = tag.cls;
+  let detailTagLabel = tag.label;
 
   container.style.display = 'block';
   container.innerHTML = `
