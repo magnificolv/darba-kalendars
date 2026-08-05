@@ -1884,24 +1884,20 @@ function renderCalendar() {
       : (info && info.type === 'work' && kindForBody === 'note' && hasUsableTimes(info)
           ? (info.countedHours != null ? info.countedHours : info.hours)
           : null);
-    // Pair notes — tikai īstām tūrēm
-    let pairNote = '';
-    if (kindForBody === 'bez-atputas') {
-      const isEnd = info.pairRole === 'end' || info.hoursHeldOnPrevDay;
-      pairNote = isEnd
-        ? '<div class="dc-pair-note">bez atp.</div>'
-        : '<div class="dc-pair-note">bez atp. →</div>';
-    } else if (kindForBody === 'no-nakts') {
-      pairNote = '<div class="dc-pair-note">no nakts</div>';
-    } else if (kindForBody === 'uz-nakti') {
-      pairNote = '<div class="dc-pair-note">uz nakti →</div>';
-    }
-    if (info && info.dutyStandby && kindForBody !== 'duty' && kindForBody !== 'duty-cont') {
-      const dh = resolveDutyHours(info);
-      const dutyBit = dh > 0
-        ? `<div class="dc-pair-note" style="color:var(--teal);">dež. ${dh.toFixed(1)}h</div>`
-        : '<div class="dc-pair-note" style="color:var(--teal);">dež.</div>';
-      pairNote = (pairNote || '') + dutyBit;
+    // Hours line: "8.9h" or "8.9 + 6.5(D)" — bez pair-note tekstiem (pietiek leģenda + krāsas)
+    let hoursHtml = '';
+    if (info && info.type === 'work' && kindForBody !== 'note' && kindForBody !== 'notfound') {
+      const workH = (shownHours != null && Number(shownHours) > 0) ? Number(shownHours) : null;
+      const dutyH = (info.dutyStandby || isDutyTour(info.tour)) ? resolveDutyHours(info) : 0;
+      if (workH != null && dutyH > 0 && !isDutyTour(info.tour)) {
+        hoursHtml = `<div class="dc-hrs">${workH.toFixed(1)} + ${dutyH.toFixed(1)}(D)</div>`;
+      } else if (isDutyTour(info.tour) && dutyH > 0) {
+        hoursHtml = `<div class="dc-hrs">${dutyH.toFixed(1)}h (D)</div>`;
+      } else if (workH != null) {
+        hoursHtml = `<div class="dc-hrs">${workH.toFixed(1)}h</div>`;
+      }
+    } else if (shownHours != null && shownHours > 0) {
+      hoursHtml = `<div class="dc-hrs">${Number(shownHours).toFixed(1)}h</div>`;
     }
 
     if (isOff) {
@@ -1913,8 +1909,7 @@ function renderCalendar() {
       bodyHtml = `
       ${safeLabel ? `<div class="${tourCls}">${safeLabel}</div>` : ''}
       ${timeHtml}
-      ${shownHours != null && shownHours > 0 ? `<div class="dc-hrs">${Number(shownHours).toFixed(1)}h</div>` : ''}
-      ${pairNote}`;
+      ${hoursHtml}`;
     }
 
     cells += `<div class="${cls}" onclick="selectDay(${d})">
