@@ -21,10 +21,14 @@
   --text-muted: #4a4d5a;
   --accent: #f59e0b;
   --accent-hover: #fbbf24;
-  /* Dienas tūres — gaišāks zils, skaidri atšķiras no nakts violetā */
-  --blue: #bfdbfe;
-  --blue-bg: #163456;
-  --blue-border: #3b82f6;
+  /* Uz nakti — tumši zils (klasiskais) */
+  --blue: #93c5fd;
+  --blue-bg: #1a2035;
+  --blue-border: #2a3a5c;
+  /* Dienas — gaišāks zils (tikai tīras dienas tūres) */
+  --day: #bfdbfe;
+  --day-bg: #1a3a5c;
+  --day-border: #60a5fa;
   --purple: #a78bfa;
   --purple-bg: #1f1535;
   --purple-border: #3b2a5c;
@@ -110,18 +114,21 @@ select {
   transition: all .15s; position: relative; border: 1px solid transparent; user-select: none;
 }
 .dc:hover { transform: scale(1.05); z-index: 10; }
-.dw { background: var(--blue-bg); border-color: var(--blue-border); } /* Dienas */
-.dw:hover { border-color: #60a5fa; box-shadow: 0 0 14px rgba(96,165,250,.4); }
-.dn { background: var(--purple-bg); border-color: var(--purple-border); } /* Uz nakti */
+.dw { background: var(--blue-bg); border-color: var(--blue-border); } /* Uz nakti */
+.dw:hover { border-color: #3b82f6; box-shadow: 0 0 14px rgba(59,130,246,.3); }
+.dday { background: var(--day-bg); border-color: var(--day-border); } /* Dienas */
+.dday:hover { border-color: #93c5fd; box-shadow: 0 0 14px rgba(96,165,250,.45); }
+.dn { background: var(--purple-bg); border-color: var(--purple-border); } /* Bez atpūtas */
 .dn:hover { border-color: #8b5cf6; box-shadow: 0 0 14px rgba(139,92,246,.3); }
-.dp { background: var(--green-bg); border-color: var(--green-border); }
+.dp { background: var(--green-bg); border-color: var(--green-border); } /* no nakts */
 .dp:hover { border-color: #22c55e; box-shadow: 0 0 14px rgba(34,197,94,.3); }
 .do { background: #1a1118; border-color: #3a2025; }
 .do:hover { border-color: #ef4444; box-shadow: 0 0 14px rgba(239,68,68,.3); }
 .dnf { background: var(--orange-bg); border-color: var(--orange-border); }
 .dd { background: var(--sky-bg); border-color: var(--sky-border); }
 .dd:hover { border-color: #38bdf8; box-shadow: 0 0 14px rgba(56,189,248,.35); }
-.sel.dw { border-color: #60a5fa !important; box-shadow: 0 0 20px rgba(96,165,250,.55) !important; }
+.sel.dw { border-color: #3b82f6 !important; box-shadow: 0 0 20px rgba(59,130,246,.5) !important; }
+.sel.dday { border-color: #60a5fa !important; box-shadow: 0 0 20px rgba(96,165,250,.55) !important; }
 .sel.dn { border-color: #8b5cf6 !important; box-shadow: 0 0 20px rgba(139,92,246,.5) !important; }
 .sel.dp { border-color: #22c55e !important; box-shadow: 0 0 20px rgba(34,197,94,.5) !important; }
 .sel.dd { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,.5) !important; }
@@ -133,8 +140,9 @@ select {
   font-size: 10px; letter-spacing: 1px;
 }
 .tag-b { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
-.tag-w { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border); }
-.tag-n { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+.tag-w { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border); } /* Uz nakti */
+.tag-day { background: var(--day-bg); color: var(--day); border: 1px solid var(--day-border); } /* Dienas */
+.tag-n { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); } /* Bez atpūtas */
 .tag-p { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
 .tag-d { background: var(--sky-bg); color: var(--sky); border: 1px solid var(--sky-border); }
 
@@ -557,10 +565,7 @@ select {
         1: /70174<br>
         2: b<br>
         3: 7117<br>
-        ...<br>
-        <br>
-        /numurs = nakts (sākas iepriekšējā dienā)<br>
-        b = brīvdiena · D = dežūra 16h · D10 = dežūra 10h · - = dežūras turpinājums
+        ...
       </div>
       <div id="gemini-copied" style="display:none; margin-top: 8px; font-size: 11px; color: var(--green);">
         ✓ Prompt nokopēts! Ielīmē to savā AI čatā kopā ar grafika bildi.
@@ -740,8 +745,9 @@ select {
         </div>
         <div class="legend" title="Tikai leģenda — nav filtri">
           <div class="legend-title">LEĢENDA</div>
-          <span class="tg tag-w">Dienas</span>
-          <span class="tg tag-n">Uz nakti</span>
+          <span class="tg tag-day">Dienas</span>
+          <span class="tg tag-w">Uz nakti</span>
+          <span class="tg tag-n">Bez atpūtas</span>
           <span class="tg tag-p">no nakts</span>
           <span class="tg tag-d">Dežūra</span>
           <span class="tg tag-b">Brīvdiena</span>
@@ -1163,6 +1169,17 @@ function crossesMidnight(start, end) {
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);
   return (eh * 60 + em) < (sh * 60 + sm);
+}
+
+/** Tīra dienas tūre: vienā kalendāra dienā, bez nakts loga 22:00–06:00 overlap */
+function isPureDayTour(info) {
+  if (!info || info.type !== 'work') return false;
+  if (info.overnight || info.pairRole || info.prevDayOvernight || info.hoursHeldOnPrevDay) return false;
+  if (info.isDuty || info.dutyContinuation || info.notFound) return false;
+  const st = info.startTime, et = info.endTime;
+  if (!st || !et || st === '?' || et === '?' || st === '—' || et === '—') return false;
+  if (crossesMidnight(st, et)) return false;
+  return nightOverlap(st, et) <= 0;
 }
 
 function calcHours(start, end) {
@@ -1627,13 +1644,17 @@ function renderCalendar() {
     let bodyHtml = '';
 
     if (info && info.type === 'work') {
-      if (info.dutyContinuation || isDutyContinuationTour(info.tour)) cls = 'dc dd'; // dežūras 2. diena — sky
-      else if (info.isDuty || isDutyTour(info.tour)) cls = 'dc dd'; // dežūra — sky (ne violeta)
+      if (info.dutyContinuation || isDutyContinuationTour(info.tour)) cls = 'dc dd'; // dežūras 2. diena
+      else if (info.isDuty || isDutyTour(info.tour)) cls = 'dc dd'; // dežūra
       else if (info.notFound) cls = 'dc dnf';
-      // no nakts (pāra beigas) PIRMS uz-nakti — citādi end diena ar 20:xx–07:xx kļūdaini paliek violeta
+      // no nakts = pāra beigas (iepr. dienas turpinājums)
       else if (info.hoursHeldOnPrevDay || info.pairRole === 'end' || (info.prevDayOvernight && !info.overnight)) cls = 'dc dp';
-      else if (info.overnight || info.pairRole === 'start') cls = 'dc dn'; // uz nakti
-      else cls = 'dc dw'; // dienas tūre
+      // Bez atpūtas = nepārtraukta tūre abās dienās (vienāds nr.), sākuma diena
+      else if (info.overnight || info.pairRole === 'start') cls = 'dc dn';
+      // Dienas = tīra dienas tūre (nav nakts stundu 22–06)
+      else if (isPureDayTour(info)) cls = 'dc dday';
+      // Uz nakti = pārējais darbs (vēls / rīta / ar nakts stundām)
+      else cls = 'dc dw';
 
       label = info.dutyContinuation ? 'D→' : (info.tour || '');
       // Stack start / end times (Claude-like). Prefer start over "beidzas".
@@ -1734,14 +1755,15 @@ function renderDayDetail() {
   const isDuty = info.isDuty || isDutyTour(info.tour);
   const isDutyCont = info.dutyContinuation || isDutyContinuationTour(info.tour);
   let detailTagClass = 'tag-w';
-  let detailTagLabel = 'DIENAS';
+  let detailTagLabel = 'UZ NAKTI';
   if (isOff) { detailTagClass = 'tag-b'; detailTagLabel = 'BRĪVDIENA'; }
   else if (isDutyCont) { detailTagClass = 'tag-d'; detailTagLabel = 'DEŽŪRA (pāris)'; }
   else if (isDuty) { detailTagClass = 'tag-d'; detailTagLabel = 'DEŽŪRA'; }
   else if (info.hoursHeldOnPrevDay || info.pairRole === 'end' || (info.prevDayOvernight && !info.overnight)) {
     detailTagClass = 'tag-p'; detailTagLabel = 'no nakts';
   }
-  else if (info.overnight || info.pairRole === 'start') { detailTagClass = 'tag-n'; detailTagLabel = 'UZ NAKTI'; }
+  else if (info.overnight || info.pairRole === 'start') { detailTagClass = 'tag-n'; detailTagLabel = 'BEZ ATPŪTAS'; }
+  else if (isPureDayTour(info)) { detailTagClass = 'tag-day'; detailTagLabel = 'DIENAS'; }
 
   container.style.display = 'block';
   container.innerHTML = `
@@ -2890,13 +2912,7 @@ function getGeminiPromptText() {
 1: /70174
 2: b
 3: 7117
-...
-
-/numurs = nakts (sākas iepriekšējā dienā)
-b = brīvdiena
-D = dežūra 16h
-D10 = dežūra 10h
-- = dežūras turpinājums`;
+...`;
 }
 
 function copyGeminiPrompt() {
