@@ -1130,6 +1130,89 @@ function normalizeTour(raw) {
   return s;
 }
 
+/**
+ * Parsē tūres ievadi ar "/" notāciju:
+ *   /703/58  → no nakts (prevNight)
+ *   7214/    → uz nakti (goesOvernight) — pietiek BEZ nākamās dienas
+ *   /T/      → abi
+ *   703/58   → dienas (ja nav pāra)
+ * Iekšējais xxx/xx slīpsvītra NAV overnight markers.
+ */
+function parseTourInput(raw) {
+  let s = String(raw == null ? '' : raw).trim();
+  if (!s) {
+    return { tour: 'b', prevNight: false, goesOvernight: false, isOff: true, dutyContinuation: false };
+  }
+
+  let prevNight = false;
+  let goesOvernight = false;
+
+  if (s.startsWith('/')) {
+    prevNight = true;
+    s = s.slice(1).trim();
+  }
+  // Trailing overnight marker (extra "/" after tour body — "7214/", "703/58/", "T/")
+  if (/\/$/.test(s)) {
+    goesOvernight = true;
+    s = s.replace(/\/+$/, '').trim();
+  }
+
+  if (!s || /^b$/i.test(s)) {
+    return { tour: 'b', prevNight: false, goesOvernight: false, isOff: true, dutyContinuation: false };
+  }
+  if (/^[\-–—_]$/.test(s)) {
+    return { tour: '-', prevNight: false, goesOvernight: false, isOff: false, dutyContinuation: true };
+  }
+  if (/^D(?:10)?$/i.test(s)) {
+    return { tour: s.toUpperCase(), prevNight: false, goesOvernight: false, isOff: false, dutyContinuation: false };
+  }
+
+  return {
+    tour: normalizeTour(s),
+    prevNight,
+    goesOvernight,
+    isOff: false,
+    dutyContinuation: false
+  };
+}
+
+/** Rādīšanai: "/703/58", "7214/", "/T/" — arī ja "/" iebakstīts tour stringā (legacy) */
+function formatTourDisplay(tourOrInfo, prevNight, goesOvernight) {
+  let tour, pn, go;
+  if (tourOrInfo && typeof tourOrInfo === 'object') {
+    if (tourOrInfo.type === 'off') return 'b';
+    const f = extractSlashFlags(tourOrInfo);
+    tour = f.tour;
+    pn = f.prevNight;
+    go = f.goesOvernight;
+  } else {
+    const f = extractSlashFlags({ tour: tourOrInfo, prevNight: prevNight, goesOvernight: goesOvernight });
+    tour = f.tour;
+    pn = f.prevNight;
+    go = f.goesOvernight;
+  }
+  if (!tour || tour === 'b') return 'b';
+  return (pn ? '/' : '') + tour + (go ? '/' : '');
+}
+
+/** Izvelk prevNight/goesOvernight no flagiem UN no tour stringa ("7214/", "/T") */
+function extractSlashFlags(info) {
+  let tour = (info && info.tour != null) ? String(info.tour).trim() : '';
+  let prevNight = !!(info && (info.prevDayOvernight || info.prevNight));
+  let goesOvernight = !!(info && info.goesOvernight);
+  if (tour.startsWith('/')) {
+    prevNight = true;
+    tour = tour.slice(1).trim();
+  }
+  if (/\/$/.test(tour)) {
+    goesOvernight = true;
+    tour = tour.replace(/\/+$/, '').trim();
+  }
+  // internal xxx/xx kept
+  if (tour && tour !== 'b' && tour !== '-') tour = normalizeTour(tour);
+  return { tour, prevNight, goesOvernight };
+}
+
 function lookupTour(tours, id) {
   if (!tours || !id) return null;
   if (tours[id]) return tours[id];
@@ -1172,35 +1255,35 @@ function crossesMidnight(start, end) {
 }
 
 /**
- * Darba dienas veids pēc GRAFIKA notācijas (ne pēc pulksteņa nakts stundām):
- * - no-nakts: šodien sākas ar "/" (prevDayOvernight) — rīts pēc komandējuma / nepārtrauktas tūres
- * - bez-atputas: nepārtraukta tūre cauri naktij, VIENĀDS nr. abās dienās (pair start)
- * - uz-nakti: šodien ej prom, NĀKAMAJĀ dienā ir "/" — paliec dienesta viesnīcā, rīt cita/turpinājuma tūre
- * - dienas: tūre beidzas un ej MĀJĀS (nākamajā dienā nav "/")
- * - duty / notfound — atsevišķi
+ * Darba dienas veids pēc "/" notācijas (ne pēc pulksteņa nakts stundām):
+ * - no-nakts: "/" PRIEKŠĀ (/T, /703/58) — rīts no viesnīcas / pēc bez-atpūtas
+ * - uz-nakti: "/" BEIGĀS (T/, 7214/) VAI nākamā diena ar "/" priekšā — viesnīcas komandējums
+ * - bez-atputas: nepārtraukta tūre, vienāds nr. abās dienās
+ * - dienas: bez "/" pāra — beidz un ej mājās
+ * - notFound NEAIZĒNO krāsu: manuāls T/ ar laikiem joprojām uz-nakti/no-nakts
  */
 function getWorkDayKind(info, nextInfo) {
   if (!info || info.type !== 'work') return 'off';
   if (info.dutyContinuation || isDutyContinuationTour(info.tour)) return 'duty-cont';
   if (info.isDuty || isDutyTour(info.tour)) return 'duty';
-  if (info.notFound) return 'notfound';
 
-  // no nakts — rīts ar "/" (no viesnīcas vai no nepārtrauktas tūres)
-  if (info.prevDayOvernight || info.hoursHeldOnPrevDay || info.pairRole === 'end') return 'no-nakts';
+  const cur = extractSlashFlags(info);
+  const nextFlags = (nextInfo && nextInfo.type === 'work') ? extractSlashFlags(nextInfo) : null;
 
-  // Bez atpūtas — nepārtraukta tūre (recalcOvernight: same tour + overnight)
+  // no nakts — "/" priekšā
+  if (cur.prevNight || info.hoursHeldOnPrevDay || info.pairRole === 'end') return 'no-nakts';
+
+  // Bez atpūtas — nepārtraukta tūre (same nr. cauri naktij)
   if (info.overnight || info.pairRole === 'start') return 'bez-atputas';
 
-  // Nākamā diena ar "/" → šodien esi "uz nakti" (viesnīca), JA vienāds nr. = bez atpūtas fallback
-  const nextFromNight = nextInfo && nextInfo.type === 'work' && (
-    nextInfo.prevDayOvernight || nextInfo.hoursHeldOnPrevDay || nextInfo.pairRole === 'end'
-  );
-  if (nextFromNight) {
-    if (info.tour && nextInfo.tour && info.tour === nextInfo.tour) return 'bez-atputas';
-    return 'uz-nakti';
-  }
+  const nextFromNight = !!(nextFlags && (
+    nextFlags.prevNight || nextInfo.hoursHeldOnPrevDay || nextInfo.pairRole === 'end'
+  ));
 
-  // Dienas — beidz un dodies mājās
+  // Explicit trailing "/" on this day OR next day starts with "/"
+  // (Bez atpūtas jau noķerts caur overnight/pairRole — te tikai viesnīcas komandējums)
+  if (cur.goesOvernight || nextFromNight) return 'uz-nakti';
+
   return 'dienas';
 }
 
@@ -1208,11 +1291,11 @@ function workDayKindToCellClass(kind) {
   switch (kind) {
     case 'duty':
     case 'duty-cont': return 'dc dd';
-    case 'notfound': return 'dc dnf';
     case 'no-nakts': return 'dc dp';
     case 'bez-atputas': return 'dc dn';
     case 'uz-nakti': return 'dc dw';
     case 'dienas': return 'dc dday';
+    case 'notfound': return 'dc dnf'; // legacy — vairs neizmanto getWorkDayKind
     default: return 'dc do';
   }
 }
@@ -1221,11 +1304,11 @@ function workDayKindToDetailTag(kind) {
   switch (kind) {
     case 'duty-cont': return { cls: 'tag-d', label: 'DEŽŪRA (pāris)' };
     case 'duty': return { cls: 'tag-d', label: 'DEŽŪRA' };
-    case 'notfound': return { cls: 'tag-w', label: 'NAV PDF' };
     case 'no-nakts': return { cls: 'tag-p', label: 'no nakts' };
     case 'bez-atputas': return { cls: 'tag-n', label: 'BEZ ATPŪTAS' };
     case 'uz-nakti': return { cls: 'tag-w', label: 'UZ NAKTI' };
     case 'dienas': return { cls: 'tag-day', label: 'DIENAS' };
+    case 'notfound': return { cls: 'tag-w', label: 'NAV PDF' };
     default: return { cls: 'tag-b', label: 'BRĪVDIENA' };
   }
 }
@@ -1278,38 +1361,32 @@ function parseGeminiText(text) {
     }
   }
 
-  // Parse day:value pairs — handle multiple per line (e.g., "5: b 6: 70255 7: /70355")
-  // Also accept duty continuation markers "-", "_", en/em dash on next day after D.
+  // Parse day:value pairs — handle multiple per line (e.g., "5: b 6: 70255 7: /70355 8: 7214/")
+  // Accept trailing "/" (uz nakti), leading "/" (no nakts), letter placeholders (T/), duty markers.
   // NOTE: separator after day must be ":" or "." — plain "-" is a VALUE (duty cont.), not a separator.
-  const pairRegex = /(\d{1,2})\s*[:.]\s*(\/?(?:D(?:10)?|[bB]|\d{3,5}(?:\/\d{2,3})?|[\-–—_]))(?=\s|$|[,;])/gi;
+  const pairRegex = /(\d{1,2})\s*[:.]\s*(\/?(?:D(?:10)?|[bB]|[A-Za-z][A-Za-z0-9]{0,7}|\d{3,5}(?:\/\d{2,3})?)\/?|[\-–—_])(?=\s|$|[,;])/gi;
   for (const line of lines) {
     if (/^[=|\s]+$/.test(line)) continue;
     let pm;
     while ((pm = pairRegex.exec(line)) !== null) {
       const day = parseInt(pm[1]);
       if (day < 1 || day > 31) continue;
-      let raw = pm[2].trim();
-      const prevNight = raw.startsWith('/');
-      const cleaned = raw.replace(/^\/\s*/, '').trim();
-      const isOff = /^b$/i.test(cleaned);
-      const isDuty = /^D(?:10)?$/i.test(cleaned);
-      const isDutyCont = /^[\-–—_]$/.test(cleaned);
-
-      if (isOff) {
-        result[day] = { tour: 'b', prevNight: false };
-      } else if (isDuty) {
-        result[day] = { tour: cleaned.toUpperCase(), prevNight: false };
-      } else if (isDutyCont) {
-        // Second day of duty pair on paper ("-" under next date after D)
-        result[day] = { tour: '-', prevNight: false, dutyContinuation: true };
-      } else if (/^\d{3,5}(?:\/\d{2,3})?$/.test(cleaned) || /^\d{4,5}$/.test(cleaned)) {
-        result[day] = { tour: normalizeTour(cleaned), prevNight };
+      const p = parseTourInput(pm[2]);
+      if (p.isOff) {
+        result[day] = { tour: 'b', prevNight: false, goesOvernight: false };
+      } else if (p.dutyContinuation) {
+        result[day] = { tour: '-', prevNight: false, goesOvernight: false, dutyContinuation: true };
+      } else {
+        result[day] = {
+          tour: p.tour,
+          prevNight: !!p.prevNight,
+          goesOvernight: !!p.goesOvernight
+        };
       }
     }
   }
 
   // If parser saw "D" then a numeric tour next day without dash, leave as-is.
-  // If we have D on day N and nothing/"-"/dutyContinuation on N+1 already handled above.
   // Link D → next "-" as duty pair for UI convenience.
   const days = Object.keys(result).map(Number).sort((a,b)=>a-b);
   for (const d of days) {
@@ -1317,7 +1394,7 @@ function parseGeminiText(text) {
     if (!e || !isDutyTour(e.tour)) continue;
     const nxt = result[d + 1];
     if (nxt && (nxt.dutyContinuation || isDutyContinuationTour(nxt.tour))) {
-      result[d + 1] = { tour: '-', prevNight: false, dutyContinuation: true, dutyParentDay: d };
+      result[d + 1] = { tour: '-', prevNight: false, goesOvernight: false, dutyContinuation: true, dutyParentDay: d };
     }
   }
 
@@ -1549,6 +1626,7 @@ async function buildCalendar() {
       const variants = lookupTour(tours, entry.tour);
       const v = getBestVariant(variants, dow);
       const prevN = entry.prevNight === true;
+      const goesOut = entry.goesOvernight === true;
       const duty = isDutyTour(entry.tour);
       const dutyT = duty ? defaultDutyTimes(entry.tour) : null;
 
@@ -1564,6 +1642,7 @@ async function buildCalendar() {
         endTime: et,
         overnight: false,
         prevDayOvernight: prevN,
+        goesOvernight: goesOut,
         baseHours: hrs,
         hours: hrs,
         countedHours: hrs,
@@ -1621,20 +1700,21 @@ function renderEditRows() {
   let html = '';
 
   for (let d = 1; d <= dim; d++) {
-    const e = state.editSchedule[d] || { tour: 'b', prevNight: false };
+    const e = state.editSchedule[d] || { tour: 'b', prevNight: false, goesOvernight: false };
     const dow = getDow(d, state.metaMonth, state.metaYear);
     const isWE = dow === 6 || dow === 7;
     const isEditing = state.editingDay === d;
     const isOff = !e.tour || e.tour === 'b';
     const isDuty = isDutyTour(e.tour);
     const isDutyCont = e.dutyContinuation || isDutyContinuationTour(e.tour);
-    const displayTour = e.prevNight ? '/' + e.tour : (e.tour || 'b');
+    const displayTour = formatTourDisplay(e.tour, e.prevNight, e.goesOvernight);
     let tagClass = 'tag-w';
     let tagLabel = 'Tūre';
     if (isOff) { tagClass = 'tag-b'; tagLabel = 'Brīvdiena'; }
     else if (isDutyCont) { tagClass = 'tag-d'; tagLabel = 'Dežūra →'; }
     else if (isDuty) { tagClass = 'tag-d'; tagLabel = 'Dežūra'; }
     else if (e.prevNight) { tagClass = 'tag-p'; tagLabel = 'no nakts'; }
+    else if (e.goesOvernight) { tagClass = 'tag-w'; tagLabel = 'uz nakti'; }
 
     html += `<div class="erow ${isWE ? 'wknd' : ''}">
       <div style="font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: ${isWE ? 'var(--accent)' : 'var(--text-dim)'}; text-align: center;">${d}</div>`;
@@ -1696,7 +1776,7 @@ function renderCalendar() {
       const kind = getWorkDayKind(info, nextInfo);
       cls = workDayKindToCellClass(kind);
 
-      label = info.dutyContinuation ? 'D→' : (info.tour || '');
+      label = info.dutyContinuation ? 'D→' : formatTourDisplay(info);
       // Stack start / end times (Claude-like). Prefer start over "beidzas".
       const st = info.startTime && info.startTime !== '?' ? info.startTime : null;
       const et = info.endTime && info.endTime !== '?' ? info.endTime : null;
@@ -1794,7 +1874,7 @@ function renderDayDetail() {
   if (!info) { container.style.display = 'none'; return; }
 
   const dow = getDow(d, state.calData.month, state.calData.year);
-  const displayTour = info.type === 'off' ? 'b' : (info.prevDayOvernight ? '/' + info.tour : info.tour);
+  const displayTour = formatTourDisplay(info);
   const isOff = info.type === 'off';
   const nextInfo = state.calData.calendar[d + 1] || null;
   const kind = isOff ? 'off' : getWorkDayKind(info, nextInfo);
@@ -1818,7 +1898,7 @@ function renderDayDetail() {
           <div style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px;">TŪRE</div>
           ${isOff
             ? `<div style="font-size: 18px; font-family: 'Bebas Neue', sans-serif; color: var(--red);">BRĪVDIENA</div>`
-            : `<div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--accent);">${escapeHtml(info.tour)}</div>`}
+            : `<div style="font-size: 22px; font-family: 'Bebas Neue', sans-serif; color: var(--accent);">${escapeHtml(formatTourDisplay(info))}</div>`}
         </div>
         ${!isOff ? `
         <div class="sc">
@@ -1832,7 +1912,7 @@ function renderDayDetail() {
       </div>
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <input type="text" id="edit-tour-inp" class="edit-inp" style="flex: 2; min-width: 100px;" value="${escapeHtml(displayTour)}"
-          placeholder="Tūre (piem., 704/59, /71169, b)"
+          placeholder="Tūre (piem. 704/59, 7214/, /T, T/, b)"
           onkeydown="if(event.key==='Enter'){event.preventDefault();updateDayTour(${d},true);}">
         <span style="font-size: 10px; color: var(--text-dim);">no</span>
         <input type="text" id="edit-start-inp" class="edit-inp" style="flex: 1; min-width: 55px;" value="${escapeHtml(info.startTime === '—' || info.startTime === '?' ? '' : (info.startTime || ''))}" placeholder="HH:MM">
@@ -2271,16 +2351,13 @@ function saveEdit(day) {
   const raw = inp.value.trim();
   if (!raw) { state.editingDay = null; renderEditRows(); return; }
 
-  const prevNight = raw.startsWith('/');
-  const cleaned = raw.replace(/^\/\s*/, '').trim();
-  const isOff = cleaned.toLowerCase() === 'b' || cleaned === '';
-  const tour = isOff ? 'b' : (isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned));
-  const dutyCont = !isOff && isDutyContinuationTour(tour);
+  const p = parseTourInput(raw);
   state.editSchedule[day] = {
-    tour,
-    prevNight: dutyCont ? false : prevNight,
-    dutyContinuation: dutyCont || undefined,
-    dutyParentDay: dutyCont ? (day - 1) : undefined
+    tour: p.tour,
+    prevNight: p.dutyContinuation ? false : !!p.prevNight,
+    goesOvernight: p.dutyContinuation || p.isOff ? false : !!p.goesOvernight,
+    dutyContinuation: p.dutyContinuation || undefined,
+    dutyParentDay: p.dutyContinuation ? (day - 1) : undefined
   };
   state.editingDay = null;
   renderEditRows();
@@ -2661,6 +2738,7 @@ function applyTourToDay(day, tourNorm, prevNight, opts) {
   const forcePdf = opts.forcePdf === true;
   const manualStart = opts.manualStart || '';
   const manualEnd = opts.manualEnd || '';
+  const goesOvernight = opts.goesOvernight === true;
 
   if (!tourNorm || tourNorm === 'b') {
     state.calData.calendar[day] = { type: 'off' };
@@ -2675,6 +2753,7 @@ function applyTourToDay(day, tourNorm, prevNight, opts) {
       endTime: '—',
       overnight: false,
       prevDayOvernight: false,
+      goesOvernight: false,
       baseHours: 0,
       hours: 0,
       countedHours: 0,
@@ -2732,7 +2811,8 @@ function applyTourToDay(day, tourNorm, prevNight, opts) {
     startTime: st,
     endTime: et,
     overnight: false,
-    prevDayOvernight: prevNight,
+    prevDayOvernight: !!prevNight,
+    goesOvernight: !!goesOvernight,
     baseHours: hrs,
     hours: hrs,
     countedHours: hrs,
@@ -2748,11 +2828,12 @@ function updateDayTour(day, preferPdfIfTourChanged) {
   const raw = inp.value.trim();
   if (!raw) return;
 
-  const prevNight = raw.startsWith('/');
-  const cleaned = raw.replace(/^\/\s*/, '').trim();
-  const isOff = cleaned.toLowerCase() === 'b';
-  const tourNorm = isOff ? 'b' : (isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned));
-  const isDutyCont = !isOff && isDutyContinuationTour(tourNorm);
+  const p = parseTourInput(raw);
+  const tourNorm = p.tour;
+  const prevNight = p.dutyContinuation ? false : !!p.prevNight;
+  const goesOvernight = p.dutyContinuation || p.isOff ? false : !!p.goesOvernight;
+  const isDutyCont = !!p.dutyContinuation;
+  const isOff = !!p.isOff;
 
   const startInp = document.getElementById('edit-start-inp');
   const endInp = document.getElementById('edit-end-inp');
@@ -2762,20 +2843,23 @@ function updateDayTour(day, preferPdfIfTourChanged) {
   const old = state.calData.calendar[day] || {};
   const oldTour = old.type === 'off' ? 'b' : (old.tour || '');
   const tourChanged = String(oldTour) !== String(tourNorm)
-    || !!(old.prevDayOvernight) !== (!isDutyCont && prevNight);
+    || !!(old.prevDayOvernight) !== prevNight
+    || !!(old.goesOvernight) !== goesOvernight;
 
   state.editSchedule[day] = {
     tour: tourNorm,
-    prevNight: isDutyCont ? false : prevNight,
+    prevNight: isDutyCont || isOff ? false : prevNight,
+    goesOvernight: isDutyCont || isOff ? false : goesOvernight,
     dutyContinuation: isDutyCont || undefined,
     dutyParentDay: isDutyCont ? (day - 1) : undefined
   };
 
-  const result = applyTourToDay(day, tourNorm, isDutyCont ? false : prevNight, {
+  const result = applyTourToDay(day, tourNorm, isDutyCont || isOff ? false : prevNight, {
     preferPdf: !!(preferPdfIfTourChanged && tourChanged),
     forcePdf: false,
     manualStart: manualStart,
-    manualEnd: manualEnd
+    manualEnd: manualEnd,
+    goesOvernight: isDutyCont || isOff ? false : goesOvernight
   });
 
   persistCalendarDayChange();
@@ -2789,10 +2873,10 @@ function updateDayTour(day, preferPdfIfTourChanged) {
       if (hint) {
         if (result.source === 'pdf') hint.textContent = '✓ Laiki no PDF kataloga';
         else if (result.source === 'duty-default') hint.textContent = '✓ Dežūras noklusējuma laiki';
-        else if (result.notFound) hint.textContent = '⚠ PDF katalogā nav šīs tūres — pievieno PDF vai ievadi laikus manuāli';
-        else if (result.source === 'manual') hint.textContent = '✓ Saglabāts ar manuāliem laikiem';
+        else if (result.source === 'manual') hint.textContent = '✓ Saglabāts ar manuāliem laikiem' + (goesOvernight ? ' · uz nakti (/)' : '') + (prevNight ? ' · no nakts (/…)' : '');
+        else if (result.notFound) hint.textContent = '⚠ PDF katalogā nav — OK manuāliem laikiem. Tips: T/ = uz nakti, /T = no nakts';
         else hint.textContent = '✓ Saglabāts';
-        hint.style.color = result.notFound ? 'var(--accent)' : 'var(--green)';
+        hint.style.color = (result.notFound && result.source !== 'manual') ? 'var(--accent)' : 'var(--green)';
       }
     }, 40);
   }
@@ -2801,33 +2885,38 @@ function updateDayTour(day, preferPdfIfTourChanged) {
 function fillDayFromPdf(day) {
   if (!state.calData) return;
   const inp = document.getElementById('edit-tour-inp');
-  let tourNorm, prevNight;
+  let tourNorm, prevNight, goesOvernight;
   if (inp && inp.value.trim()) {
-    const raw = inp.value.trim();
-    prevNight = raw.startsWith('/');
-    const cleaned = raw.replace(/^\/\s*/, '').trim();
-    if (cleaned.toLowerCase() === 'b') {
+    const p = parseTourInput(inp.value.trim());
+    if (p.isOff) {
       const hint = document.getElementById('day-pdf-hint');
       if (hint) { hint.textContent = 'Brīvdienai nav PDF laiku'; hint.style.color = 'var(--text-dim)'; }
       return;
     }
-    tourNorm = isDutyTour(cleaned) ? cleaned.toUpperCase() : normalizeTour(cleaned);
+    tourNorm = p.tour;
+    prevNight = !!p.prevNight;
+    goesOvernight = !!p.goesOvernight;
   } else {
     const info = state.calData.calendar[day];
     if (!info || info.type === 'off') return;
     tourNorm = info.tour;
     prevNight = !!info.prevDayOvernight;
+    goesOvernight = !!info.goesOvernight;
   }
 
   const isDutyCont = isDutyContinuationTour(tourNorm);
   state.editSchedule[day] = {
     tour: tourNorm,
     prevNight: isDutyCont ? false : prevNight,
+    goesOvernight: isDutyCont ? false : goesOvernight,
     dutyContinuation: isDutyCont || undefined,
     dutyParentDay: isDutyCont ? (day - 1) : undefined
   };
 
-  const result = applyTourToDay(day, tourNorm, isDutyCont ? false : prevNight, { forcePdf: true });
+  const result = applyTourToDay(day, tourNorm, isDutyCont ? false : prevNight, {
+    forcePdf: true,
+    goesOvernight: isDutyCont ? false : goesOvernight
+  });
   persistCalendarDayChange();
   const keep = day;
   state.selectedDay = null;
@@ -2846,7 +2935,7 @@ function fillDayFromPdf(day) {
     } else {
       const n = Object.keys(getPdfCatalog()).length;
       hint.textContent = n
-        ? '⚠ Tūre nav PDF katalogā (' + n + ' tūres ielādētas) — pievieno pareizo PDF'
+        ? '⚠ Tūre nav PDF katalogā (' + n + ' tūres ielādētas) — pievieno PDF vai ievadi laikus manuāli'
         : '⚠ Nav ielādēta neviena PDF — spied «+ PIEVIENOT PDF FAILUS»';
       hint.style.color = 'var(--accent)';
     }
@@ -2876,17 +2965,21 @@ function refreshAllFromPdf() {
 
     const sched = state.editSchedule[d] || {
       tour: info.tour,
-      prevNight: !!info.prevDayOvernight
+      prevNight: !!info.prevDayOvernight,
+      goesOvernight: !!info.goesOvernight
     };
     const tourNorm = sched.tour || info.tour;
     if (!tourNorm || tourNorm === 'b') continue;
     if (isDutyTour(tourNorm)) {
       // refresh duty defaults too
-      const r = applyTourToDay(d, tourNorm, false, { forcePdf: true });
+      const r = applyTourToDay(d, tourNorm, false, { forcePdf: true, goesOvernight: false });
       if (r.source === 'duty-default') fixed++;
       continue;
     }
-    const r = applyTourToDay(d, tourNorm, !!sched.prevNight, { forcePdf: true });
+    const r = applyTourToDay(d, tourNorm, !!sched.prevNight, {
+      forcePdf: true,
+      goesOvernight: !!sched.goesOvernight || !!info.goesOvernight
+    });
     if (r.source === 'pdf') fixed++;
     else if (r.notFound) missing++;
   }
@@ -2926,8 +3019,15 @@ async function addExtraPdfs(fileList) {
       if (info.dutyContinuation || isDutyContinuationTour(info.tour)) continue;
       if (isDutyTour(info.tour)) continue;
       if (!(info.notFound || info.startTime === '?' || !info.startTime)) continue;
-      const sched = state.editSchedule[d] || { tour: info.tour, prevNight: !!info.prevDayOvernight };
-      const r = applyTourToDay(d, sched.tour || info.tour, !!sched.prevNight, { forcePdf: true });
+      const sched = state.editSchedule[d] || {
+        tour: info.tour,
+        prevNight: !!info.prevDayOvernight,
+        goesOvernight: !!info.goesOvernight
+      };
+      const r = applyTourToDay(d, sched.tour || info.tour, !!sched.prevNight, {
+        forcePdf: true,
+        goesOvernight: !!sched.goesOvernight || !!info.goesOvernight
+      });
       if (r.source === 'pdf') fixed++;
     }
     persistCalendarDayChange();
