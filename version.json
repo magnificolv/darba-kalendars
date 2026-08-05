@@ -1,6 +1,6 @@
 {
-  "version": "3.7.4",
+  "version": "3.7.5",
   "name": "Darba Kalendārs",
-  "builtAt": "2026-08-05T15:00:00+03:00",
-  "notes": "Polished full-bleed calendar icon — no outer margins"
+  "builtAt": "2026-08-05T15:10:00+03:00",
+  "notes": "Rollback to icon #3 style, zoomed (smaller margins)"
 }

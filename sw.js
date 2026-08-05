@@ -2,7 +2,7 @@
  * NEW versions install in background but do NOT activate until user taps «Atjaunināt».
  * No forced reloads mid-session.
  */
-const APP_VERSION = '3.7.4';
+const APP_VERSION = '3.7.5';
 const CACHE = 'darba-kalendars-v' + APP_VERSION;
 
 const PRECACHE = [
@@ -10,9 +10,9 @@ const PRECACHE = [
   './index.html',
   './version.json',
   './manifest.webmanifest',
-  './icons/icon-192-v374.png',
-  './icons/icon-512-v374.png',
-  './icons/apple-touch-icon-v374.png'
+  './icons/icon-192-v375.png',
+  './icons/icon-512-v375.png',
+  './icons/apple-touch-icon-v375.png'
 ];
 
 self.addEventListener('install', (event) => {
