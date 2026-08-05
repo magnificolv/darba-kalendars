@@ -11,19 +11,19 @@
   "lang": "lv",
   "icons": [
     {
-      "src": "icons/icon-192-v373.png",
+      "src": "icons/icon-192-v374.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512-v373.png",
+      "src": "icons/icon-512-v374.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512-maskable-v373.png",
+      "src": "icons/icon-512-maskable-v374.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
