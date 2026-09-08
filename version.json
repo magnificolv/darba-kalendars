@@ -1,6 +1,6 @@
 {
-  "version": "3.8.2",
+  "version": "3.8.3",
   "name": "Darba Kalendārs",
-  "builtAt": "2026-09-08T16:40:00+03:00",
-  "notes": "Keep trip lists: tour headers vs train numbers; stamp trips on days"
+  "builtAt": "2026-09-08T17:00:00+03:00",
+  "notes": "Prefer longest trip list (park-only stale rows vs full tour)"
 }

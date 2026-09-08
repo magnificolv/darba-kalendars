@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kalendārs">
 <meta name="description" content="Vilciena konduktora darba grafika pārvaldnieks">
-<title>Darba Kalendārs v3.8.2 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.8.3 — Vilciena Konduktors</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32-v375.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v375.png">
@@ -2546,9 +2546,12 @@ function catalogVariantsForTour(tourNorm) {
 
 function tripsFromVariants(variants, dow) {
   if (!variants || !variants.length) return [];
-  const v = (dow != null) ? getBestVariant(variants, dow) : variants[0];
-  if (v && Array.isArray(v.trips) && v.trips.length) return v.trips;
-  const withTrips = variants.filter(function(x) { return x && Array.isArray(x.trips) && x.trips.length; });
+  var pool = variants;
+  if (dow != null) {
+    var matching = variants.filter(function(x) { return x && matchesDow(x.dayPattern, dow); });
+    if (matching.length) pool = matching;
+  }
+  var withTrips = pool.filter(function(x) { return x && Array.isArray(x.trips) && x.trips.length; });
   if (!withTrips.length) return [];
   withTrips.sort(function(a, b) { return b.trips.length - a.trips.length; });
   return withTrips[0].trips;
@@ -2559,9 +2562,11 @@ function getTripsForDay(day) {
   const info = state.calData.calendar[day];
   if (!info || info.type !== 'work') return [];
   if (info.dutyContinuation || isDutyContinuationTour(info.tour) || isDutyTour(info.tour)) return [];
-  if (info.trips && info.trips.length) return info.trips;
   const dow = getDow(day, state.calData.month, state.calData.year);
-  return tripsFromVariants(catalogVariantsForTour(info.tour), dow);
+  const fromCat = tripsFromVariants(catalogVariantsForTour(info.tour), dow);
+  const fromDay = (info.trips && info.trips.length) ? info.trips : [];
+  if (fromCat.length >= fromDay.length) return fromCat;
+  return fromDay;
 }
 
 function stampTripsOnCalendar() {
@@ -2573,7 +2578,7 @@ function stampTripsOnCalendar() {
     if (!info || info.type !== 'work') continue;
     if (info.dutyContinuation || isDutyContinuationTour(info.tour) || isDutyTour(info.tour)) continue;
     const trips = tripsFromVariants(catalogVariantsForTour(info.tour), getDow(d, state.calData.month, state.calData.year));
-    if (trips.length) {
+    if (trips.length && (!info.trips || trips.length >= info.trips.length)) {
       info.trips = trips;
       n++;
     }
@@ -3815,7 +3820,7 @@ function addPdfs(files) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PWA — install + MANUAL updates only (no forced reload mid-session)
 // ═══════════════════════════════════════════════════════════════════════════
-const APP_VERSION = '3.8.2';
+const APP_VERSION = '3.8.3';
 let _swRegistration = null;
 let _waitingWorker = null;
 let _deferredInstallPrompt = null;
