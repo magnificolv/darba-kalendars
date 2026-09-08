@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kalendārs">
 <meta name="description" content="Vilciena konduktora darba grafika pārvaldnieks">
-<title>Darba Kalendārs v3.7.5 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.8.0 — Vilciena Konduktors</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32-v375.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v375.png">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   DARBA KALENDĀRS v3.7 — Dark Theme + PWA
+   DARBA KALENDĀRS v3.8 — Dark Theme + PWA
    ═══════════════════════════════════════════════════════════════════════════ */
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
 
@@ -244,6 +244,46 @@ select {
   padding: 24px; max-width: 400px; width: 90%; animation: fadeIn .2s ease;
 }
 
+.modal.trips-modal {
+  max-width: 480px; max-height: 86vh; overflow: auto;
+  padding: 20px 18px 16px;
+}
+.trip-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; }
+.trip-row {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.trip-row.park {
+  background: #12141a;
+  border-color: #3f3f46;
+  border-left: 3px solid #a1a1aa;
+}
+.trip-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.trip-route { font-size: 12px; color: var(--text); line-height: 1.35; }
+.trip-row.park .trip-route { color: #a1a1aa; font-style: italic; }
+.trip-bottom { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.trip-train { font-size: 10px; color: var(--text-dim); }
+.trip-row.park .trip-train { color: #71717a; }
+.trip-time { font-size: 15px; font-weight: 500; color: #c7d2fe; letter-spacing: 0.4px; }
+.trip-row.park .trip-time { color: #d4d4d8; }
+.trip-park-tag {
+  font-size: 9px; letter-spacing: 1.2px; color: #a1a1aa;
+  text-transform: uppercase;
+}
+.btn-trips {
+  background: var(--purple-bg); color: var(--purple);
+  border: 1px solid var(--purple-border);
+  padding: 6px 14px; font-family: 'DM Mono', monospace; font-size: 11px;
+  cursor: pointer; border-radius: 4px; transition: all .2s;
+}
+.btn-trips:hover { border-color: var(--purple); color: #ddd6fe; box-shadow: 0 0 12px rgba(167,139,250,.25); }
+.btn-trips:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+
+
 /* Hermes section */
 .hermes-card {
   background: var(--purple-bg); border: 1px solid var(--purple-border);
@@ -409,6 +449,9 @@ select {
     padding: 16px;
     max-width: none;
   }
+  .trip-time { font-size: 14px; }
+  .trip-route { font-size: 11px; }
+  .btn-trips { width: 100%; }
 
   /* ── Day detail ── */
   #day-detail .sc {
@@ -1524,6 +1567,55 @@ function parseGeminiText(text) {
 // PDF PARSING (pdf.js — replaces Claude API)
 // ═══════════════════════════════════════════════════════════════════════════
 
+
+function parkDirection(route) {
+  const r = String(route || '');
+  if (!/vagonu\s*parks|\bparks\b/i.test(r)) return null;
+  // "Vagonu parks - Rīga" / "(Aizkraukle) Vagonu parks - Rīga"
+  if (/parks\s*\)?\s*-/i.test(r) || /^\s*(\([^)]*\)\s*)*vagonu\s*parks/i.test(r)) return 'no';
+  if (/-\s*.*parks/i.test(r)) return 'uz';
+  return 'park';
+}
+
+function parseTripsFromBlock(text) {
+  const trips = [];
+  if (!text) return trips;
+  const tourHeadRe = /^(\d{3,4}\/\d{2,3}|\d{4,5})\b/;
+  const dayPatRe = /^(darbd\.|brīvd\.|[0-9][0-9,.\-]*d)\s+/i;
+  const lines = String(text).split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (!line) continue;
+    if (/^(tūres\s*nr|maršruts|vilciena|darba\s|stundas|forma f-|pielikums|atpūtas telpa|rīgas konduktor)/i.test(line)) continue;
+    const head = line.match(tourHeadRe);
+    if (head) line = line.slice(head[0].length).trim();
+    // K/K skaits (1–2 cipari) pirms maršruta
+    line = line.replace(/^\d{1,2}\s+(?=[A-ZĀČĒĢĪĶĻŅŠŪŽ(])/u, '');
+    line = line.replace(dayPatRe, '');
+    const timeRe = /\b(\d{2}:\d{2})\b/g;
+    const timeMatches = [];
+    let tm;
+    while ((tm = timeRe.exec(line)) !== null) timeMatches.push({ t: tm[1], i: tm.index });
+    if (timeMatches.length < 2) continue;
+    const before = line.slice(0, timeMatches[0].i).trim();
+    const tw = before.match(/^(.*)\s+(\d{3,5}\*?)\s+(\d+(?:\s*[+/]\s*\d+)*)\s*$/);
+    if (!tw) continue;
+    const route = tw[1].replace(dayPatRe, '').trim();
+    if (!route || route.length < 3) continue;
+    const dir = parkDirection(route);
+    trips.push({
+      route: route,
+      train: tw[2],
+      wagons: tw[3].replace(/\s+/g, ''),
+      dep: timeMatches[0].t,
+      arr: timeMatches[1].t,
+      park: !!dir,
+      parkDir: dir || undefined
+    });
+  }
+  return trips;
+}
+
 async function parseTourPdfs(files) {
   const tours = {};
   for (const file of files) {
@@ -1632,14 +1724,18 @@ async function parseTourPdfs(files) {
             if (text.includes(dp)) { dayPattern = dp; break; }
           }
 
-          const entry = { dayPattern, startTime, endTime, hours: hours || parseFloat(calcHours(startTime, endTime)) };
+          const trips = parseTripsFromBlock(text);
+          const entry = { dayPattern, startTime, endTime, hours: hours || parseFloat(calcHours(startTime, endTime)), trips: trips };
           if (!tours[tid]) tours[tid] = [];
-          const exists = tours[tid].some(t =>
+          const existsIdx = tours[tid].findIndex(t =>
             t.dayPattern === entry.dayPattern &&
             t.startTime === entry.startTime &&
             t.endTime === entry.endTime
           );
-          if (!exists) tours[tid].push(entry);
+          if (existsIdx < 0) tours[tid].push(entry);
+          else if (trips.length && (!tours[tid][existsIdx].trips || !tours[tid][existsIdx].trips.length)) {
+            tours[tid][existsIdx].trips = trips;
+          }
         }
       }
     }
@@ -2075,6 +2171,7 @@ function renderDayDetail() {
         <button class="btn-sm" onclick="updateDayTour(${d}, true)" title="Saglabā un mēģina aizpildīt laikus no PDF, ja tūre mainīta">💾 Saglabāt</button>
         <button class="btn-sm" onclick="fillDayFromPdf(${d})" title="Aizpilda šīs dienas laikus no PDF kataloga"
           style="background: var(--sky-bg); color: var(--sky); border-color: var(--sky-border);">🔄 No PDF</button>
+        ${!isOff && kind !== 'note' ? `<button type="button" class="btn-trips" onclick="showTourTrips(${d})" title="Šīs tūres braucienu saraksts no PDF">🚆 Braucieni</button>` : ''}
       </div>
       <div id="duty-standby-hint" style="margin-top: 6px; font-size: 10px; color: var(--teal); ${info.dutyStandby && hasUsableTimes(info) ? '' : 'display:none;'}">
         Dežūra 05:00 → ${hasUsableTimes(info) ? escapeHtml(info.startTime) : 'tūres sākums'} = <b>${(info.dutyStandby && hasUsableTimes(info) ? calcDutyStandbyHours(info.startTime).toFixed(1) : '0.0')}h</b> (DEŽŪRAS kastē, ne KOPĀ). Tūres stundas joprojām KOPĀ.
@@ -2386,6 +2483,58 @@ function showHoursBreakdown() {
       ${holidayDays.length > 0 ? `<div style="font-size: 10px; color: var(--text-muted);">Svētku dienas: ${holidayDays.map(d => d + '. ' + MONTH_LV[state.calData.month].slice(0,3)).join(', ')}</div>` : ''}
       <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()" style="width: 100%; margin-top: 12px;">Aizvērt</button>
     </div>`;
+  document.body.appendChild(modal);
+}
+
+
+function parkTagLabel(dir) {
+  if (dir === 'uz') return 'uz parku';
+  if (dir === 'no') return 'no parka';
+  return 'parks';
+}
+
+function getTripsForDay(day) {
+  if (!state.calData) return [];
+  const info = state.calData.calendar[day];
+  if (!info || info.type !== 'work') return [];
+  if (info.dutyContinuation || isDutyContinuationTour(info.tour) || isDutyTour(info.tour)) return [];
+  const catalog = getPdfCatalog();
+  const variants = lookupTour(catalog, info.tour);
+  const dow = getDow(day, state.calData.month, state.calData.year);
+  const v = getBestVariant(variants, dow);
+  return (v && Array.isArray(v.trips)) ? v.trips : [];
+}
+
+function showTourTrips(day) {
+  if (!state.calData) return;
+  const info = state.calData.calendar[day];
+  if (!info) return;
+  const trips = getTripsForDay(day);
+  const tourLabel = formatTourDisplay(info);
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+  let body;
+  if (!trips.length) {
+    body = '<div style="font-size:12px;color:var(--text-dim);line-height:1.55;">Šai tūrei katalogā nav braucienu saraksta.<br>Pievieno tūru PDF vēlreiz ar «+ PIEVIENOT PDF FAILUS» — tad saraksts parādīsies.</div>';
+  } else {
+    body = '<div class="trip-list">' + trips.map(function(tr) {
+      const park = !!tr.park;
+      const tag = park ? '<div class="trip-park-tag">' + escapeHtml(parkTagLabel(tr.parkDir)) + '</div>' : '';
+      return '<div class="trip-row' + (park ? ' park' : '') + '">'
+        + '<div class="trip-top"><div class="trip-route">' + escapeHtml(tr.route) + '</div>' + tag + '</div>'
+        + '<div class="trip-bottom"><span class="trip-train">' + escapeHtml(tr.train) + '</span>'
+        + '<span class="trip-time">' + escapeHtml(tr.dep) + ' → ' + escapeHtml(tr.arr) + '</span></div>'
+        + '</div>';
+    }).join('') + '</div>'
+      + '<div style="font-size:9px;color:var(--text-dim);letter-spacing:.4px;">Pelēkās rindas — uz / no parka (PDF bez treknraksta)</div>';
+  }
+  modal.innerHTML = '<div class="modal fade-in trips-modal">'
+    + '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;letter-spacing:3px;color:var(--accent);margin-bottom:4px;">BRAUCIENI</div>'
+    + '<div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;">Tūre ' + escapeHtml(tourLabel) + '</div>'
+    + body
+    + '<button class="btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()" style="width:100%;margin-top:10px;">Aizvērt</button>'
+    + '</div>';
   document.body.appendChild(modal);
 }
 
@@ -3559,7 +3708,7 @@ function addPdfs(files) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PWA — install + MANUAL updates only (no forced reload mid-session)
 // ═══════════════════════════════════════════════════════════════════════════
-const APP_VERSION = '3.7.5';
+const APP_VERSION = '3.8.0';
 let _swRegistration = null;
 let _waitingWorker = null;
 let _deferredInstallPrompt = null;
