@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kalendārs">
 <meta name="description" content="Vilciena konduktora darba grafika pārvaldnieks">
-<title>Darba Kalendārs v3.8.0 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.8.1 — Vilciena Konduktors</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32-v375.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v375.png">
@@ -1577,16 +1577,22 @@ function parkDirection(route) {
   return 'park';
 }
 
+function displayTrainNr(raw) {
+  return String(raw || '').replace(/_/g, '').replace(/\*{2,}/g, '*');
+}
+
 function parseTripsFromBlock(text) {
   const trips = [];
   if (!text) return trips;
   const tourHeadRe = /^(\d{3,4}\/\d{2,3}|\d{4,5})\b/;
   const dayPatRe = /^(darbd\.|brīvd\.|[0-9][0-9,.\-]*d)\s+/i;
+  // PDF marks: 6725_  6114_**  6536**  _6223  7711E_*  876 _**
+  const trainWagRe = /^(.*)\s+(_?\d{3,5}[A-Za-z]?[_*]*)(?:\s+[_*]+)?\s+(\d+(?:\s*[+/]\s*\d+)*)\s*$/;
   const lines = String(text).split('\n');
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i].trim();
     if (!line) continue;
-    if (/^(tūres\s*nr|maršruts|vilciena|darba\s|stundas|forma f-|pielikums|atpūtas telpa|rīgas konduktor)/i.test(line)) continue;
+    if (/^(tūres\s*nr|maršruts|vilciena|darba\s|stundas|forma f-|pielikums|atpūtas telpa|rīgas konduktor|pārtraukums)/i.test(line)) continue;
     const head = line.match(tourHeadRe);
     if (head) line = line.slice(head[0].length).trim();
     // K/K skaits (1–2 cipari) pirms maršruta
@@ -1598,14 +1604,15 @@ function parseTripsFromBlock(text) {
     while ((tm = timeRe.exec(line)) !== null) timeMatches.push({ t: tm[1], i: tm.index });
     if (timeMatches.length < 2) continue;
     const before = line.slice(0, timeMatches[0].i).trim();
-    const tw = before.match(/^(.*)\s+(\d{3,5}\*?)\s+(\d+(?:\s*[+/]\s*\d+)*)\s*$/);
+    const tw = before.match(trainWagRe);
     if (!tw) continue;
     const route = tw[1].replace(dayPatRe, '').trim();
     if (!route || route.length < 3) continue;
+    if (/pārtraukums/i.test(route)) continue;
     const dir = parkDirection(route);
     trips.push({
       route: route,
-      train: tw[2],
+      train: displayTrainNr(tw[2]),
       wagons: tw[3].replace(/\s+/g, ''),
       dep: timeMatches[0].t,
       arr: timeMatches[1].t,
@@ -2500,9 +2507,33 @@ function getTripsForDay(day) {
   if (info.dutyContinuation || isDutyContinuationTour(info.tour) || isDutyTour(info.tour)) return [];
   const catalog = getPdfCatalog();
   const variants = lookupTour(catalog, info.tour);
+  if (!variants || !variants.length) return [];
   const dow = getDow(day, state.calData.month, state.calData.year);
   const v = getBestVariant(variants, dow);
-  return (v && Array.isArray(v.trips)) ? v.trips : [];
+  if (v && Array.isArray(v.trips) && v.trips.length) return v.trips;
+  const withTrips = variants.filter(x => x && Array.isArray(x.trips) && x.trips.length);
+  if (!withTrips.length) return [];
+  withTrips.sort((a, b) => b.trips.length - a.trips.length);
+  return withTrips[0].trips;
+}
+
+function mergePdfTours(target, incoming) {
+  if (!incoming) return target || {};
+  const out = target || {};
+  Object.keys(incoming).forEach(function(id) {
+    const list = incoming[id] || [];
+    if (!out[id]) { out[id] = list; return; }
+    list.forEach(function(entry) {
+      const idx = out[id].findIndex(function(t) {
+        return t.dayPattern === entry.dayPattern && t.startTime === entry.startTime && t.endTime === entry.endTime;
+      });
+      if (idx < 0) out[id].push(entry);
+      else if (entry.trips && entry.trips.length && (!out[id][idx].trips || entry.trips.length >= out[id][idx].trips.length)) {
+        out[id][idx].trips = entry.trips;
+      }
+    });
+  });
+  return out;
 }
 
 function showTourTrips(day) {
@@ -3368,7 +3399,7 @@ async function addExtraPdfs(fileList) {
     const newTours = await parseTourPdfs(files);
     // Merge with existing tours
     if (!state.calData.pdfTours) state.calData.pdfTours = {};
-    Object.assign(state.calData.pdfTours, newTours);
+    state.calData.pdfTours = mergePdfTours(state.calData.pdfTours, newTours);
 
     const hint2 = document.getElementById('extra-pdf-hint');
     hint2.textContent = `✓ Pievienotas ${Object.keys(newTours).length} tūres`;
@@ -3708,7 +3739,7 @@ function addPdfs(files) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PWA — install + MANUAL updates only (no forced reload mid-session)
 // ═══════════════════════════════════════════════════════════════════════════
-const APP_VERSION = '3.8.0';
+const APP_VERSION = '3.8.1';
 let _swRegistration = null;
 let _waitingWorker = null;
 let _deferredInstallPrompt = null;
