@@ -2,7 +2,7 @@
  * NEW versions install in background but do NOT activate until user taps «Atjaunināt».
  * No forced reloads mid-session.
  */
-const APP_VERSION = '3.8.1';
+const APP_VERSION = '3.8.2';
 const CACHE = 'darba-kalendars-v' + APP_VERSION;
 
 const PRECACHE = [

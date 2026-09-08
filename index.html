@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kalendārs">
 <meta name="description" content="Vilciena konduktora darba grafika pārvaldnieks">
-<title>Darba Kalendārs v3.8.1 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.8.2 — Vilciena Konduktors</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32-v375.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v375.png">
@@ -1568,6 +1568,14 @@ function parseGeminiText(text) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 
+function isTourHeaderLine(line) {
+  const t = String(line || '').trim();
+  if (/^\d{3,4}\/\d{2,3}\b/.test(t)) return true;
+  // 4–5 ciparu tūre + K/K skaits + maršruts, ne vilciens+vagoni+laiks ("6105 4 06:17")
+  if (/^\d{4,5}\s+\d\s+(?!\d{2}:)/.test(t)) return true;
+  return false;
+}
+
 function parkDirection(route) {
   const r = String(route || '');
   if (!/vagonu\s*parks|\bparks\b/i.test(r)) return null;
@@ -1620,6 +1628,30 @@ function parseTripsFromBlock(text) {
       parkDir: dir || undefined
     });
   }
+  // Full-block scan: pdf.js sometimes lauž rindas, per-line palaid garām
+  const seen = {};
+  trips.forEach(function(t) { seen[t.dep + '|' + t.arr + '|' + t.train] = true; });
+  const blob = String(text).replace(/\n/g, ' ');
+  const glob = /((?:\([^)]+\)\s*)?[A-ZĀČĒĢĪĶĻŅŠŪŽ][A-Za-zĀ-ž0-9 .()\/-]{0,48}? - [A-ZĀČĒĢĪĶĻŅŠŪŽ][A-Za-zĀ-ž0-9 .()\/-]{0,48}?)\s+(_?\d{3,5}(?:\s*[A-Za-z])?[*_]*)\s+(\d+(?:\s*[+/]\s*\d+)*)\s+(\d{2}:\d{2})\s+(\d{2}:\d{2})/g;
+  let gm;
+  while ((gm = glob.exec(blob)) !== null) {
+    const route = gm[1].replace(/\s+/g, ' ').trim();
+    if (route.length < 3 || /tūres\s*nr|maršruts|atpūtas telpa|pielikums/i.test(route)) continue;
+    const train = displayTrainNr(gm[2]);
+    const key = gm[4] + '|' + gm[5] + '|' + train;
+    if (seen[key]) continue;
+    seen[key] = true;
+    const dir = parkDirection(route);
+    trips.push({
+      route: route,
+      train: train,
+      wagons: gm[3].replace(/\s+/g, ''),
+      dep: gm[4],
+      arr: gm[5],
+      park: !!dir,
+      parkDir: dir || undefined
+    });
+  }
   return trips;
 }
 
@@ -1666,14 +1698,15 @@ async function parseTourPdfs(files) {
       const textLines = lines.map(line => line.map(it => it.str).join(' ').trim());
       const fullText = textLines.join('\n');
 
-      // Split into tour blocks: find lines starting with a tour number
+      // Split into tour blocks. Train numbers (6105, 6873*) also match \d{4} —
+      // only start a new tour on a real header: "709/79 …" or "7159 1 Rīga …"
       const tourRegex = /^(\d{3,4}\/\d{2,3}|\d{4,5})\b/;
       const tourBlocks = [];
       let currentBlock = null;
 
       for (const line of textLines) {
         const tMatch = line.match(tourRegex);
-        if (tMatch) {
+        if (tMatch && isTourHeaderLine(line)) {
           // Save previous block
           if (currentBlock && currentBlock.tourId) {
             tourBlocks.push(currentBlock);
@@ -1870,7 +1903,8 @@ async function buildCalendar() {
         hours: hrs,
         countedHours: hrs,
         notFound: !variants && !duty,
-        isDuty: duty
+        isDuty: duty,
+        trips: (v && Array.isArray(v.trips) && v.trips.length) ? v.trips : undefined
       };
     }
 
@@ -2500,21 +2534,51 @@ function parkTagLabel(dir) {
   return 'parks';
 }
 
+function catalogVariantsForTour(tourNorm) {
+  const catalog = getPdfCatalog();
+  if (!tourNorm) return null;
+  let variants = lookupTour(catalog, tourNorm);
+  if ((!variants || !variants.length) && String(tourNorm).charAt(0) === '/') {
+    variants = lookupTour(catalog, String(tourNorm).slice(1));
+  }
+  return variants;
+}
+
+function tripsFromVariants(variants, dow) {
+  if (!variants || !variants.length) return [];
+  const v = (dow != null) ? getBestVariant(variants, dow) : variants[0];
+  if (v && Array.isArray(v.trips) && v.trips.length) return v.trips;
+  const withTrips = variants.filter(function(x) { return x && Array.isArray(x.trips) && x.trips.length; });
+  if (!withTrips.length) return [];
+  withTrips.sort(function(a, b) { return b.trips.length - a.trips.length; });
+  return withTrips[0].trips;
+}
+
 function getTripsForDay(day) {
   if (!state.calData) return [];
   const info = state.calData.calendar[day];
   if (!info || info.type !== 'work') return [];
   if (info.dutyContinuation || isDutyContinuationTour(info.tour) || isDutyTour(info.tour)) return [];
-  const catalog = getPdfCatalog();
-  const variants = lookupTour(catalog, info.tour);
-  if (!variants || !variants.length) return [];
+  if (info.trips && info.trips.length) return info.trips;
   const dow = getDow(day, state.calData.month, state.calData.year);
-  const v = getBestVariant(variants, dow);
-  if (v && Array.isArray(v.trips) && v.trips.length) return v.trips;
-  const withTrips = variants.filter(x => x && Array.isArray(x.trips) && x.trips.length);
-  if (!withTrips.length) return [];
-  withTrips.sort((a, b) => b.trips.length - a.trips.length);
-  return withTrips[0].trips;
+  return tripsFromVariants(catalogVariantsForTour(info.tour), dow);
+}
+
+function stampTripsOnCalendar() {
+  if (!state.calData || !state.calData.calendar) return 0;
+  let n = 0;
+  const dim = state.calData.daysInMonth;
+  for (let d = 1; d <= dim; d++) {
+    const info = state.calData.calendar[d];
+    if (!info || info.type !== 'work') continue;
+    if (info.dutyContinuation || isDutyContinuationTour(info.tour) || isDutyTour(info.tour)) continue;
+    const trips = tripsFromVariants(catalogVariantsForTour(info.tour), getDow(d, state.calData.month, state.calData.year));
+    if (trips.length) {
+      info.trips = trips;
+      n++;
+    }
+  }
+  return n;
 }
 
 function mergePdfTours(target, incoming) {
@@ -2524,12 +2588,19 @@ function mergePdfTours(target, incoming) {
     const list = incoming[id] || [];
     if (!out[id]) { out[id] = list; return; }
     list.forEach(function(entry) {
-      const idx = out[id].findIndex(function(t) {
+      const inTrips = (entry.trips && entry.trips.length) ? entry.trips.length : 0;
+      let idx = out[id].findIndex(function(t) {
         return t.dayPattern === entry.dayPattern && t.startTime === entry.startTime && t.endTime === entry.endTime;
       });
+      if (idx < 0) {
+        idx = out[id].findIndex(function(t) { return t.dayPattern === entry.dayPattern; });
+      }
       if (idx < 0) out[id].push(entry);
-      else if (entry.trips && entry.trips.length && (!out[id][idx].trips || entry.trips.length >= out[id][idx].trips.length)) {
+      else if (inTrips && (!out[id][idx].trips || inTrips >= out[id][idx].trips.length)) {
         out[id][idx].trips = entry.trips;
+        if (entry.startTime) out[id][idx].startTime = entry.startTime;
+        if (entry.endTime) out[id][idx].endTime = entry.endTime;
+        if (entry.hours != null) out[id][idx].hours = entry.hours;
       }
     });
   });
@@ -3056,6 +3127,7 @@ function loadState() {
         state.metaYear = data.metaYear || new Date().getFullYear();
         state._monthsData = data.monthsData || {};
         setStep(STEPS.CALENDAR);
+        stampTripsOnCalendar();
         renderCalendar();
         return true;
       }
@@ -3173,6 +3245,7 @@ function applyTourToDay(day, tourNorm, prevNight, opts) {
     source = 'missing'; notFound = true;
   }
 
+  const tripList = tripsFromVariants(variants, dow);
   state.calData.calendar[day] = {
     type: 'work',
     tour: tourNorm,
@@ -3186,7 +3259,8 @@ function applyTourToDay(day, tourNorm, prevNight, opts) {
     hours: hrs,
     countedHours: hrs,
     notFound: notFound,
-    isDuty: duty
+    isDuty: duty,
+    trips: tripList
   };
   return { ok: !notFound || duty || hasManual, source: source, notFound: notFound };
 }
@@ -3378,6 +3452,7 @@ function refreshAllFromPdf() {
     else if (r.notFound) missing++;
   }
 
+  stampTripsOnCalendar();
   persistCalendarDayChange();
   renderCalendar();
   if (hint) {
@@ -3400,9 +3475,10 @@ async function addExtraPdfs(fileList) {
     // Merge with existing tours
     if (!state.calData.pdfTours) state.calData.pdfTours = {};
     state.calData.pdfTours = mergePdfTours(state.calData.pdfTours, newTours);
+    const stamped = stampTripsOnCalendar();
 
     const hint2 = document.getElementById('extra-pdf-hint');
-    hint2.textContent = `✓ Pievienotas ${Object.keys(newTours).length} tūres`;
+    hint2.textContent = `✓ Pievienotas ${Object.keys(newTours).length} tūres` + (stamped ? `, braucieni ${stamped} dienām` : '');
 
     // Re-resolve work days that were missing / still '?' from the merged catalog
     const dim = state.calData.daysInMonth;
@@ -3739,7 +3815,7 @@ function addPdfs(files) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PWA — install + MANUAL updates only (no forced reload mid-session)
 // ═══════════════════════════════════════════════════════════════════════════
-const APP_VERSION = '3.8.1';
+const APP_VERSION = '3.8.2';
 let _swRegistration = null;
 let _waitingWorker = null;
 let _deferredInstallPrompt = null;
