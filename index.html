@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kalendārs">
 <meta name="description" content="Vilciena konduktora darba grafika pārvaldnieks">
-<title>Darba Kalendārs v3.8.3 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.8.4 — Vilciena Konduktors</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32-v375.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v375.png">
@@ -1524,9 +1524,9 @@ function parseGeminiText(text) {
   }
 
   // Parse day:value pairs — handle multiple per line (e.g., "5: b 6: 70255 7: /70355 8: 7214/")
-  // Accept trailing "/" (uz nakti), leading "/" (no nakts), letter placeholders (T/), duty markers.
+  // Accept ANY token (OCR garbage like /0841DE, BTM, mācības) — unknown text stays a note, not "b".
   // NOTE: separator after day must be ":" or "." — plain "-" is a VALUE (duty cont.), not a separator.
-  const pairRegex = /(\d{1,2})\s*[:.]\s*(\/?(?:D(?:10)?|[bB]|[A-Za-z][A-Za-z0-9]{0,7}|\d{3,5}(?:\/\d{2,3})?)\/?|[\-–—_])(?=\s|$|[,;])/gi;
+  const pairRegex = /(\d{1,2})\s*[:.]\s*(\S+)(?=\s*$|\s+\d{1,2}\s*[:.]|[,;])/g;
   for (const line of lines) {
     if (/^[=|\s]+$/.test(line)) continue;
     let pm;
@@ -1964,12 +1964,14 @@ function renderEditRows() {
     const isOff = !e.tour || e.tour === 'b';
     const isDuty = isDutyTour(e.tour);
     const isDutyCont = e.dutyContinuation || isDutyContinuationTour(e.tour);
+    const isNote = !isOff && !isDuty && !isDutyCont && !isTourNumberLike(e.tour);
     const displayTour = formatTourDisplay(e.tour, e.prevNight, e.goesOvernight);
     let tagClass = 'tag-w';
     let tagLabel = 'Tūre';
     if (isOff) { tagClass = 'tag-b'; tagLabel = 'Brīvdiena'; }
     else if (isDutyCont) { tagClass = 'tag-d'; tagLabel = 'Dežūra →'; }
     else if (isDuty) { tagClass = 'tag-d'; tagLabel = 'Dežūra'; }
+    else if (isNote) { tagClass = 'tag-nf'; tagLabel = 'Piezīme'; }
     else if (e.prevNight) { tagClass = 'tag-p'; tagLabel = 'no nakts'; }
     else if (e.goesOvernight) { tagClass = 'tag-w'; tagLabel = 'uz nakti'; }
 
@@ -3820,7 +3822,7 @@ function addPdfs(files) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PWA — install + MANUAL updates only (no forced reload mid-session)
 // ═══════════════════════════════════════════════════════════════════════════
-const APP_VERSION = '3.8.3';
+const APP_VERSION = '3.8.4';
 let _swRegistration = null;
 let _waitingWorker = null;
 let _deferredInstallPrompt = null;

@@ -1,6 +1,6 @@
 {
-  "version": "3.8.3",
+  "version": "3.8.4",
   "name": "Darba Kalendārs",
-  "builtAt": "2026-09-08T17:00:00+03:00",
-  "notes": "Prefer longest trip list (park-only stale rows vs full tour)"
+  "builtAt": "2026-09-09T14:10:00+03:00",
+  "notes": "Keep OCR garbage tokens (0841DE) as orange notes, not day-off"
 }
