@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kalendārs">
 <meta name="description" content="Vilciena konduktora darba grafika pārvaldnieks">
-<title>Darba Kalendārs v3.8.4 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.8.5 — Vilciena Konduktors</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32-v375.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v375.png">
@@ -3296,6 +3296,10 @@ function updateDayTour(day, preferPdfIfTourChanged) {
   const tourChanged = String(oldTour) !== String(tourNorm)
     || !!(old.prevDayOvernight) !== prevNight
     || !!(old.goesOvernight) !== goesOvernight;
+  const tourNumChanged = String(oldTour) !== String(tourNorm);
+  const oldStart = (!old.startTime || old.startTime === '—' || old.startTime === '?') ? '' : String(old.startTime);
+  const oldEnd = (!old.endTime || old.endTime === '—' || old.endTime === '?') ? '' : String(old.endTime);
+  const timesUnchanged = !!(manualStart && manualEnd && manualStart === oldStart && manualEnd === oldEnd);
 
   // Dežūra ķeksītis: pure D → false; D→tūre auto-on ja lietotājs nav noņēmis
   let dutyStandby = false;
@@ -3345,8 +3349,25 @@ function updateDayTour(day, preferPdfIfTourChanged) {
         else hint.textContent = '✓ Saglabāts' + (dutyStandby ? ` · dežūra ON` : '');
         hint.style.color = (result.notFound && result.source !== 'manual') ? 'var(--accent)' : 'var(--green)';
       }
+      if (tourNumChanged && result.notFound && result.source === 'manual' && timesUnchanged
+          && !isOff && !isDutyCont && !isDutyTour(tourNorm)) {
+        showNotInPdfTimesModal();
+      }
     }, 40);
   }
+}
+
+function showNotInPdfTimesModal() {
+  document.querySelectorAll('.modal-overlay.warn-pdf-times').forEach(function(m) { m.remove(); });
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay warn-pdf-times';
+  modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = '<div class="modal fade-in" style="max-width:420px;">'
+    + '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;letter-spacing:2px;color:var(--orange);margin-bottom:12px;">TŪRE NAV PDF</div>'
+    + '<div style="font-size:14px;line-height:1.55;color:var(--text);margin-bottom:18px;">Tūre nav PDF. Pārliecinies ka ievadiji laikus pareizi!</div>'
+    + '<button type="button" class="btn" style="width:100%;" onclick="this.closest(\'.modal-overlay\').remove()">OK</button>'
+    + '</div>';
+  document.body.appendChild(modal);
 }
 
 function fillDayFromPdf(day) {
@@ -3822,7 +3843,7 @@ function addPdfs(files) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PWA — install + MANUAL updates only (no forced reload mid-session)
 // ═══════════════════════════════════════════════════════════════════════════
-const APP_VERSION = '3.8.4';
+const APP_VERSION = '3.8.5';
 let _swRegistration = null;
 let _waitingWorker = null;
 let _deferredInstallPrompt = null;

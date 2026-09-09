@@ -1,6 +1,6 @@
 {
-  "version": "3.8.4",
+  "version": "3.8.5",
   "name": "Darba Kalendārs",
-  "builtAt": "2026-09-09T14:10:00+03:00",
-  "notes": "Keep OCR garbage tokens (0841DE) as orange notes, not day-off"
+  "builtAt": "2026-09-09T14:25:00+03:00",
+  "notes": "Warn if tour changed, not in PDF, old times kept"
 }
