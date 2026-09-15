@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kalendārs">
 <meta name="description" content="Vilciena konduktora darba grafika pārvaldnieks">
-<title>Darba Kalendārs v3.8.5 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.9.0 — Vilciena Konduktors</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32-v375.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v375.png">
@@ -560,6 +560,10 @@ select {
   padding: 8px 12px; font-family: 'DM Mono', monospace; font-size: 12px; cursor: pointer;
 }
 .pwa-banner.install-banner { border-color: var(--blue-border); }
+.pwa-banner.storage-banner { border-color: #7a5c15; }
+.pwa-banner.storage-banner.full { border-color: var(--red); }
+.pwa-banner.storage-banner .pwa-msg b { color: #fbbf24; }
+.pwa-banner.storage-banner.full .pwa-msg b { color: var(--red); }
 .app-footer {
   text-align: center; padding: 18px 12px 28px; font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px;
 }
@@ -584,6 +588,15 @@ select {
   <div class="pwa-actions">
     <button type="button" class="btn-dismiss" id="btn-install-later">Ne tagad</button>
     <button type="button" class="btn-update" id="btn-install-pwa">⬇ Instalēt</button>
+  </div>
+</div>
+
+<!-- Storage (quota) warning — never silent data loss -->
+<div id="storage-banner" class="pwa-banner storage-banner" role="status" aria-live="polite">
+  <div class="pwa-msg" id="storage-msg"></div>
+  <div class="pwa-actions">
+    <button type="button" class="btn-dismiss" id="btn-storage-close">Aizvērt</button>
+    <button type="button" class="btn-update" id="btn-storage-export">⬇ Eksportēt</button>
   </div>
 </div>
 
@@ -875,7 +888,13 @@ select {
 </div>
 
 <!-- ═══════════════ SCRIPTS ═══════════════ -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.js"></script>
+<script src="./lib/pdf.min.js"></script>
+<script>
+// pdf.js servē lokāli (nav CDN atkarības) — strādā arī bez interneta un aiz ugunsmūra
+if (typeof pdfjsLib !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.js';
+}
+</script>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1936,7 +1955,9 @@ async function buildCalendar() {
     }, 500);
 
   } catch (e) {
-    showError('Kļūda apstrādājot PDF: ' + e.message);
+    showError(typeof pdfjsLib === 'undefined'
+      ? 'PDF lasītājs nav ielādēts. Pārlādē lapu (↻) un mēģini vēlreiz.'
+      : 'Kļūda apstrādājot PDF: ' + e.message);
     setStep(STEPS.EDIT);
   }
 }
@@ -3109,6 +3130,53 @@ function openSyncPanel() {
 
 const STORAGE_KEY = 'darba-kalendars-v3';
 
+// localStorage kvota (~5M rakstzīmes) — brīdinam laikus, nevis klusējot zaudējam datus
+const STORAGE_WARN_CHARS = 4000000;   // ~80%
+let _storageWarnDismissed = false;
+
+function monthCount() {
+  return state._monthsData ? Object.keys(state._monthsData).length : 0;
+}
+
+function showStorageBanner(kind) {
+  const banner = document.getElementById('storage-banner');
+  const msg = document.getElementById('storage-msg');
+  if (!banner || !msg) return;
+  const n = monthCount();
+  if (kind === 'full') {
+    msg.innerHTML = '🛑 Atmiņa pilna — <b>jaunākais saglabājums netika izdarīts</b>. ' +
+      'Eksportē .json, tad dzēs vecos mēnešus (🗑 Dzēst mēnesi) un saglabā vēlreiz.';
+    banner.classList.add('full');
+    banner.classList.add('show');
+    _storageWarnDismissed = false;
+    return;
+  }
+  if (_storageWarnDismissed) return;
+  msg.innerHTML = '⚠️ Atmiņa gandrīz pilna (<b>' + n + ' mēneši</b>). ' +
+    'Eksportē datus un dzēs vecos mēnešus, citādi jaunākie var netikt saglabāti.';
+  banner.classList.remove('full');
+  banner.classList.add('show');
+}
+
+function hideStorageBanner() {
+  const banner = document.getElementById('storage-banner');
+  if (banner) banner.classList.remove('show');
+}
+
+// Vienreiz (kad ir ko saglabāt) palūdzam pārlūkam persistējošu atmiņu —
+// tas pasargā no automātiskas datu iztīrīšanas, kad ierīcei trūkst vietas.
+let _persistAsked = false;
+function ensurePersistentStorage() {
+  try {
+    if (_persistAsked || !navigator.storage || !navigator.storage.persist) return;
+    _persistAsked = true;
+    navigator.storage.persisted().then(function (already) {
+      if (already) return;
+      navigator.storage.persist().catch(function () {});
+    }).catch(function () {});
+  } catch (e) {}
+}
+
 function saveState() {
   try {
     const data = {
@@ -3118,8 +3186,19 @@ function saveState() {
       metaYear: state.metaYear,
       monthsData: state._monthsData
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) { /* silent */ }
+    const raw = JSON.stringify(data);
+    try {
+      localStorage.setItem(STORAGE_KEY, raw);
+    } catch (e) {
+      // Kvota pilna (QuotaExceededError) — dati NETIEK saglabāti: rādam skaidru brīdinājumu
+      showStorageBanner('full');
+      return false;
+    }
+    if (raw.length > STORAGE_WARN_CHARS) showStorageBanner('warn');
+    else hideStorageBanner();
+    if (monthCount() > 0) ensurePersistentStorage();
+    return true;
+  } catch (e) { return false; }
 }
 
 function loadState() {
@@ -3843,7 +3922,7 @@ function addPdfs(files) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PWA — install + MANUAL updates only (no forced reload mid-session)
 // ═══════════════════════════════════════════════════════════════════════════
-const APP_VERSION = '3.8.5';
+const APP_VERSION = '3.9.0';
 let _swRegistration = null;
 let _waitingWorker = null;
 let _deferredInstallPrompt = null;
@@ -3990,6 +4069,15 @@ function initPwa() {
     hideInstallUi();
   });
   if (btnInst) btnInst.addEventListener('click', promptPwaInstall);
+
+  // Storage banner: eksports + aizvēršana (pilna atmiņa neklusē)
+  const btnStorageExport = document.getElementById('btn-storage-export');
+  if (btnStorageExport) btnStorageExport.addEventListener('click', function () { exportMonthsJson(); });
+  const btnStorageClose = document.getElementById('btn-storage-close');
+  if (btnStorageClose) btnStorageClose.addEventListener('click', function () {
+    _storageWarnDismissed = true;
+    hideStorageBanner();
+  });
 
   // Install prompt (Chrome/Edge/Android)
   window.addEventListener('beforeinstallprompt', (e) => {

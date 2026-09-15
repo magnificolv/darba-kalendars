@@ -1,6 +1,6 @@
 {
-  "version": "3.8.5",
+  "version": "3.9.0",
   "name": "Darba Kalendārs",
-  "builtAt": "2026-09-09T14:25:00+03:00",
-  "notes": "Warn if tour changed, not in PDF, old times kept"
+  "builtAt": "2026-09-15T14:00:27+03:00",
+  "notes": "pdf.js lokāli (bez CDN), persistējošā atmiņa, brīdinājums par pilnu atmiņu"
 }
