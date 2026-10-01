@@ -1,6 +1,6 @@
 {
-  "version": "3.9.0",
+  "version": "3.9.1",
   "name": "Darba Kalendārs",
-  "builtAt": "2026-09-15T14:00:27+03:00",
-  "notes": "pdf.js lokāli (bez CDN), persistējošā atmiņa, brīdinājums par pilnu atmiņu"
+  "builtAt": "2026-10-01T14:40:23+03:00",
+  "notes": "universālais grafika prompts — precizitātes teikums pret modeļu halucinācijām"
 }
