@@ -1,6 +1,6 @@
 {
-  "version": "3.9.1",
+  "version": "3.9.2",
   "name": "Darba Kalendārs",
-  "builtAt": "2026-10-01T14:40:23+03:00",
-  "notes": "universālais grafika prompts — precizitātes teikums pret modeļu halucinācijām"
+  "builtAt": "2026-10-16T13:38:26+03:00",
+  "notes": "first-open install popup so colleagues don't need Chrome ⋮ menu"
 }

@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kalendārs">
 <meta name="description" content="Vilciena konduktora darba grafika pārvaldnieks">
-<title>Darba Kalendārs v3.9.1 — Vilciena Konduktors</title>
+<title>Darba Kalendārs v3.9.2 — Vilciena Konduktors</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32-v375.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v375.png">
@@ -560,6 +560,61 @@ select {
   padding: 8px 12px; font-family: 'DM Mono', monospace; font-size: 12px; cursor: pointer;
 }
 .pwa-banner.install-banner { border-color: var(--blue-border); }
+
+/* First-open install popup — not waiting for Chrome mini-infobar */
+.install-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 10050;
+  background: rgba(6, 8, 14, .78);
+  align-items: center; justify-content: center;
+  padding: 18px;
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+}
+.install-overlay.show { display: flex; }
+.install-sheet {
+  width: 100%; max-width: 380px;
+  background: #161820;
+  border: 1px solid var(--blue-border);
+  border-radius: 18px;
+  padding: 22px 18px 16px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.65);
+  text-align: center;
+}
+.install-sheet .install-icon {
+  width: 72px; height: 72px; border-radius: 16px;
+  display: block; margin: 0 auto 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+.install-sheet .install-kicker {
+  font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 6px;
+}
+.install-sheet .install-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 1.5px;
+  color: var(--text); margin-bottom: 8px;
+}
+.install-sheet .install-sub {
+  font-size: 13px; line-height: 1.5; color: var(--text-dim); margin-bottom: 14px;
+}
+.install-sheet .install-sub b { color: var(--text); }
+.install-steps {
+  text-align: left; margin: 0 0 14px; padding: 10px 10px 10px 28px;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px;
+  font-size: 12px; line-height: 1.55; color: var(--text);
+}
+.install-steps[hidden] { display: none; }
+.install-steps li { margin: 4px 0; }
+.install-sheet .install-actions {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+}
+.install-sheet .install-actions .btn-update {
+  background: var(--accent); color: #0c0e14; border: none; border-radius: 10px;
+  padding: 12px 18px; font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 600; cursor: pointer; flex: 1 1 140px;
+}
+.install-sheet .install-actions .btn-dismiss {
+  background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px; font-family: 'DM Mono', monospace; font-size: 13px; cursor: pointer; flex: 1 1 100px;
+}
 .pwa-banner.storage-banner { border-color: #7a5c15; }
 .pwa-banner.storage-banner.full { border-color: var(--red); }
 .pwa-banner.storage-banner .pwa-msg b { color: #fbbf24; }
@@ -582,12 +637,22 @@ select {
   </div>
 </div>
 
-<!-- Install PWA -->
-<div id="install-banner" class="pwa-banner install-banner" role="dialog" aria-label="Instalēt lietotni">
-  <div class="pwa-msg">📱 Pievieno <b>sākuma ekrānam</b> — bez pārlūka katru reizi.</div>
-  <div class="pwa-actions">
-    <button type="button" class="btn-dismiss" id="btn-install-later">Ne tagad</button>
-    <button type="button" class="btn-update" id="btn-install-pwa">⬇ Instalēt</button>
+<!-- Install PWA popup (first open on phone) -->
+<div id="install-banner" class="install-overlay" role="dialog" aria-modal="true" aria-label="Instalēt lietotni">
+  <div class="install-sheet">
+    <img class="install-icon" src="icons/icon-192-v375.png" width="72" height="72" alt="">
+    <div class="install-kicker">Darba Kalendārs</div>
+    <div class="install-title">Instalē kā lietotni</div>
+    <div class="install-sub" id="install-msg">Uz sākuma ekrāna — kā parasta app, bez Chrome izvēlnes katru reizi.</div>
+    <ol class="install-steps" id="install-ios-steps" hidden>
+      <li>Spied <b>Share</b> (□↑) apakšā Safari</li>
+      <li>Ritini līdz <b>Add to Home Screen</b></li>
+      <li>Spied <b>Add</b></li>
+    </ol>
+    <div class="install-actions">
+      <button type="button" class="btn-dismiss" id="btn-install-later">Ne tagad</button>
+      <button type="button" class="btn-update" id="btn-install-pwa">⬇ Instalēt</button>
+    </div>
   </div>
 </div>
 
@@ -3926,7 +3991,7 @@ function addPdfs(files) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PWA — install + MANUAL updates only (no forced reload mid-session)
 // ═══════════════════════════════════════════════════════════════════════════
-const APP_VERSION = '3.9.1';
+const APP_VERSION = '3.9.2';
 let _swRegistration = null;
 let _waitingWorker = null;
 let _deferredInstallPrompt = null;
@@ -4007,48 +4072,130 @@ async function manualCheckForUpdate(fromButton) {
   return false;
 }
 
-function promptPwaInstall() {
-  const banner = document.getElementById('install-banner');
-  if (_deferredInstallPrompt) {
-    _deferredInstallPrompt.prompt();
-    _deferredInstallPrompt.userChoice.finally(() => {
-      _deferredInstallPrompt = null;
-      hideInstallUi();
-    });
+function isStandalonePwa() {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+}
+function isIosDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function isInAppBrowser() {
+  const ua = navigator.userAgent || '';
+  if (/FBAN|FBAV|Instagram|Line\/|WhatsApp|Viber|Telegram|TikTok|Snapchat/i.test(ua)) return true;
+  if (/Android/i.test(ua) && /; wv\)/.test(ua)) return true;
+  return false;
+}
+function isMobileInstallTarget() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    || window.matchMedia('(max-width: 900px)').matches;
+}
+function installWasDismissed() {
+  try {
+    const v = localStorage.getItem('dk-install-sheet');
+    if (v === '1') return true;
+    if (localStorage.getItem('dk-install-dismissed') === APP_VERSION) return true;
+  } catch (e) {}
+  return false;
+}
+function markInstallDismissed() {
+  try { localStorage.setItem('dk-install-sheet', '1'); } catch (e) {}
+}
+
+function refreshInstallCopy() {
+  const msg = document.getElementById('install-msg');
+  const steps = document.getElementById('install-ios-steps');
+  const btn = document.getElementById('btn-install-pwa');
+  if (!msg) return;
+  if (isInAppBrowser()) {
+    if (steps) steps.hidden = true;
+    msg.innerHTML = 'Čata iekšējā pārlūkā instalēt nevar. Atver šo linku <b>Chrome</b> (Android) vai <b>Safari</b> (iPhone).';
+    if (btn) btn.textContent = isIosDevice() ? 'Atvērt Safari' : 'Atvērt Chrome';
     return;
   }
-  // iOS / browsers without beforeinstallprompt
-  if (banner) {
-    const msg = banner.querySelector('.pwa-msg');
-    if (msg) {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      msg.innerHTML = isIOS
-        ? '📱 <b>iPhone/iPad:</b> Safari → Share (□↑) → <b>Add to Home Screen</b>'
-        : '📱 Pārlūkā: izvēlne ⋮ → <b>Install app</b> / Pievienot sākuma ekrānam';
-    }
-    banner.classList.add('show');
+  if (isIosDevice()) {
+    if (steps) steps.hidden = false;
+    msg.innerHTML = 'iPhone: vispirms instalē, tad ievadi grafiku — tā dati paliek appā.';
+    if (btn) btn.textContent = 'Kā instalēt';
+    return;
   }
+  if (steps) steps.hidden = true;
+  msg.innerHTML = 'Uz sākuma ekrāna — kā parasta app, bez Chrome izvēlnes katru reizi.';
+  if (btn) btn.textContent = '⬇ Instalēt';
+}
+
+function openInSystemBrowser() {
+  const url = 'https://magnificolv.github.io/darba-kalendars/';
+  if (!isIosDevice()) {
+    window.location.href = 'intent://magnificolv.github.io/darba-kalendars/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+    return;
+  }
+  try { window.open(url, '_blank'); } catch (e) {}
+}
+
+function fireNativeInstall() {
+  if (!_deferredInstallPrompt) return false;
+  _deferredInstallPrompt.prompt();
+  _deferredInstallPrompt.userChoice.finally(() => {
+    _deferredInstallPrompt = null;
+    hideInstallUi();
+  });
+  return true;
+}
+
+function promptPwaInstall() {
+  if (isInAppBrowser()) {
+    openInSystemBrowser();
+    refreshInstallCopy();
+    const banner = document.getElementById('install-banner');
+    if (banner) banner.classList.add('show');
+    return;
+  }
+  if (fireNativeInstall()) return;
+  if (isIosDevice()) {
+    refreshInstallCopy();
+    const banner = document.getElementById('install-banner');
+    if (banner) banner.classList.add('show');
+    return;
+  }
+  const btn = document.getElementById('btn-install-pwa');
+  if (btn) { btn.disabled = true; btn.textContent = 'Gatavo…'; }
+  const started = Date.now();
+  const wait = setInterval(() => {
+    if (fireNativeInstall()) {
+      clearInterval(wait);
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Instalēt'; }
+      return;
+    }
+    if (Date.now() - started > 1800) {
+      clearInterval(wait);
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Instalēt'; }
+      refreshInstallCopy();
+      const banner = document.getElementById('install-banner');
+      if (banner) banner.classList.add('show');
+      const msg = document.getElementById('install-msg');
+      if (msg) msg.innerHTML = 'Ja Chrome logs neizlec: izvēlne <b>⋮</b> → <b>Instalēt lietotni</b>.';
+    }
+  }, 120);
 }
 
 function hideInstallUi() {
   const banner = document.getElementById('install-banner');
-  const hdr = document.getElementById('btn-install-header');
   if (banner) banner.classList.remove('show');
-  // keep header btn if still installable
-  if (hdr && !_deferredInstallPrompt) hdr.style.display = 'none';
 }
 
-function showInstallUi() {
+function maybeShowInstallSheet() {
+  if (isStandalonePwa() || installWasDismissed() || !isMobileInstallTarget()) return;
   const hdr = document.getElementById('btn-install-header');
   if (hdr) hdr.style.display = '';
-  // Soft install banner once per version unless dismissed
-  try {
-    if (localStorage.getItem('dk-install-dismissed') === APP_VERSION) return;
-  } catch (e) {}
+  refreshInstallCopy();
   const banner = document.getElementById('install-banner');
-  if (banner && !window.matchMedia('(display-mode: standalone)').matches) {
+  if (!banner) return;
+  setTimeout(() => {
+    if (isStandalonePwa() || installWasDismissed()) return;
     banner.classList.add('show');
-  }
+  }, 500);
 }
 
 function initPwa() {
@@ -4069,10 +4216,14 @@ function initPwa() {
   const btnInstLater = document.getElementById('btn-install-later');
   const btnInst = document.getElementById('btn-install-pwa');
   if (btnInstLater) btnInstLater.addEventListener('click', () => {
-    try { localStorage.setItem('dk-install-dismissed', APP_VERSION); } catch (e) {}
+    markInstallDismissed();
     hideInstallUi();
   });
   if (btnInst) btnInst.addEventListener('click', promptPwaInstall);
+  const overlay = document.getElementById('install-banner');
+  if (overlay) overlay.addEventListener('click', (ev) => {
+    if (ev.target === overlay) hideInstallUi();
+  });
 
   // Storage banner: eksports + aizvēršana (pilna atmiņa neklusē)
   const btnStorageExport = document.getElementById('btn-storage-export');
@@ -4087,21 +4238,23 @@ function initPwa() {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     _deferredInstallPrompt = e;
-    showInstallUi();
+    const hdr = document.getElementById('btn-install-header');
+    if (hdr && !isStandalonePwa()) hdr.style.display = '';
+    refreshInstallCopy();
   });
   window.addEventListener('appinstalled', () => {
     _deferredInstallPrompt = null;
+    markInstallDismissed();
     hideInstallUi();
+    const hdr = document.getElementById('btn-install-header');
+    if (hdr) hdr.style.display = 'none';
   });
 
-  // Already standalone?
-  const standalone = window.matchMedia('(display-mode: standalone)').matches
-    || window.navigator.standalone === true;
-  if (!standalone && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    // Show header install affordance on mobile even without bip event (iOS)
+  if (!isStandalonePwa() && isMobileInstallTarget()) {
     const hdr = document.getElementById('btn-install-header');
     if (hdr) hdr.style.display = '';
   }
+  maybeShowInstallSheet();
 
   // Service worker
   if ('serviceWorker' in navigator) {
